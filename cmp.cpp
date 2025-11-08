@@ -322,6 +322,9 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
 
     if(0) { m_break: break; }  // Exit label (jumped to from WM_CLOSE)
 
+    // Convert WM_KEYDOWN to WM_CHAR for character input (needed for terminal typing)
+    TranslateMessage(&msg);
+
     switch( msg.message ) {
 
     case WM_MOUSEWHEEL:
