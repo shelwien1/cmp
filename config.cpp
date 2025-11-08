@@ -2,8 +2,8 @@
 #include "config.h"
 #include "file_win.h"
 
-// Default configuration: Consolas font, 32 bytes/line, no selection, 32-bit addresses, no help
-viewstate lf = { {-19,-10, 0, 0, 400, 0, 0, 0, 204, 3, 2, 1, 49, "Consolas"}, 32,255, -1, 0, 0 };
+// Default configuration: Consolas font, 32 bytes/line, no selection, 32-bit addresses, no help, no terminal
+viewstate lf = { {-19,-10, 0, 0, 400, 0, 0, 0, 204, 3, 2, 1, 49, "Consolas"}, 32,255, -1, 0, 0, 0 };
 viewstate lf_old;  // Backup of old config (to detect changes)
 
 // Save configuration to registry (HKCU\Software\SRC\cmp_01\config)
