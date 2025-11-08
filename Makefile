@@ -80,4 +80,8 @@ clean:
 # Rebuild everything
 rebuild: clean all
 
+# Terminal emulator target
+terminal.exe: terminal.cpp setfont.o palette.o textprint.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
 .PHONY: all clean rebuild

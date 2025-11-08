@@ -5,89 +5,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// CMP library includes
+#include "common.h"
+#include "bitmap.h"
+#include "setfont.h"
+#include "textblock.h"
+#include "textprint.h"
+#include "palette.h"
+
 #pragma comment(lib,"gdi32.lib")
 #pragma comment(lib,"user32.lib")
 
-//--- Type definitions
-typedef unsigned short word;
-typedef unsigned int   uint;
-typedef unsigned char  byte;
-typedef unsigned long long qword;
-
 //--- Terminal state and encapsulation
 struct Terminal {
-
-  //--- DIB bitmap wrapper for double buffering
-  struct DIB {
-    HBITMAP hbm;
-    byte*   ptr;
-    int     bmX,bmY;
-
-    void Init( int X, int Y ) {
-      bmX=X; bmY=Y;
-      BITMAPINFO bmi;
-      memset(&bmi,0,sizeof(bmi));
-      bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-      bmi.bmiHeader.biWidth = bmX;
-      bmi.bmiHeader.biHeight = -bmY;
-      bmi.bmiHeader.biPlanes = 1;
-      bmi.bmiHeader.biBitCount = 32;
-      bmi.bmiHeader.biCompression = BI_RGB;
-      hbm = CreateDIBSection( 0, &bmi, DIB_RGB_COLORS, (void**)&ptr, 0, 0 );
-    }
-
-    void Reset( void ) {
-      if(ptr) memset(ptr,0,bmX*bmY*4);
-    }
-
-    void Quit( void ) {
-      if( hbm!=0 ) DeleteObject(hbm);
-      hbm=0; ptr=0;
-    }
-  };
-
-  //--- Font rendering wrapper
-  struct Font {
-    HFONT   hfont;
-    int     wmax,hmax;
-    LOGFONTA lf;
-    HDC screenDC;
-
-    void Init( const char* fontname, int height ) {
-      memset(&lf,0,sizeof(lf));
-      lf.lfHeight = height;
-      lf.lfWidth = 0;
-      lf.lfWeight = FW_NORMAL;
-      lf.lfCharSet = DEFAULT_CHARSET;
-      lf.lfQuality = NONANTIALIASED_QUALITY;
-      lf.lfPitchAndFamily = FIXED_PITCH | FF_MODERN;
-      strncpy(lf.lfFaceName,fontname,sizeof(lf.lfFaceName)-1);
-
-      hfont = CreateFontIndirectA(&lf);
-
-      screenDC=CreateCompatibleDC(0);
-      SelectObject(screenDC,GetStockObject(BLACK_BRUSH));
-
-      if( hfont ) GetMetrics();
-    }
-
-    void GetMetrics() {
-      HDC& dc = screenDC;
-      TEXTMETRICA tm;
-      SIZE sz;
-      SelectObject(dc,hfont);
-      GetTextMetricsA(dc,&tm);
-      GetTextExtentPoint32A(dc,"W",1,&sz);
-      wmax = sz.cx;
-      hmax = tm.tmHeight;
-    }
-
-    void Quit( void ) {
-      DeleteDC(screenDC);
-      if( hfont!=0 ) DeleteObject(hfont);
-      hfont=0;
-    }
-  };
 
   RECT    area;
   int     cols;
@@ -115,11 +46,12 @@ struct Terminal {
   uint    fg_color;
   uint    bg_color;
 
-  DIB     dib;
-  HDC     dibDC;
-  Font*   font;
+  mybitmap  bm;          // CMP bitmap for rendering
+  textblock tb;          // CMP textblock for character grid
+  HDC       dibDC;
+  myfont*   font;        // CMP font
 
-  void Init( Font& fnt, const RECT& rc ) {
+  void Init( myfont& fnt, const RECT& rc ) {
 
     // runtime-configurable text buffer sizes
     lines_capacity = 1000;      // number of historical lines kept
@@ -167,12 +99,15 @@ struct Terminal {
 
     int dib_w = cols * font->wmax;
     int dib_h = rows * font->hmax;
-    dib.Init(dib_w, dib_h);
-    SelectObject(dibDC, dib.hbm);
+
+    // Initialize CMP bitmap and textblock
+    bm.AllocBitmap(dibDC, dib_w, dib_h);
+    tb.Init(*font, cols, rows, 0, 0);
   }
 
   void Quit() {
-    dib.Quit();
+    tb.Quit();
+    if( bm.dib ) { DeleteObject(bm.dib); bm.dib=0; }
     if( dibDC ) { DeleteDC(dibDC); dibDC=0; }
     if(lines_data) { free(lines_data); lines_data=0; current_line=0; }
   }
@@ -300,74 +235,80 @@ struct Terminal {
   }
 
   void RenderToWindow(HDC wndDC) {
-    RenderTerminal(dib, dibDC, *font, cursor_blink);
-    BitBlt(wndDC, area.left, area.top, dib.bmX, dib.bmY, dibDC, 0, 0, SRCCOPY);
+    RenderTerminal(bm, dibDC, *font, cursor_blink);
+    BitBlt(wndDC, area.left, area.top, bm.bmX, bm.bmY, dibDC, 0, 0, SRCCOPY);
   }
 
-  //--- Rendering functions
-  void DrawTextClamped( DIB& dib, HDC dc, Font& font, const char* text, int x, int y, uint color ) {
-    int len=(int)strlen(text);
-    if(len==0) return;
-    SIZE sz; RECT rc;
-    SetTextColor(dc,color);
-    SetBkColor(dc,bg_color);
-    SelectObject(dc,font.hfont);
-    GetTextExtentPoint32A(dc,text,len,&sz);
-    if(x<0) x=0; if(y<0) y=0;
-    if(x+sz.cx>dib.bmX) sz.cx = dib.bmX-x;
-    if(y+sz.cy>dib.bmY) sz.cy = dib.bmY-y;
-    if(sz.cx<=0||sz.cy<=0) return;
-    rc.left=x; rc.top=y; rc.right=x+sz.cx; rc.bottom=y+sz.cy;
-    ExtTextOutA(dc,x,y,ETO_OPAQUE,&rc,text,len,NULL);
-  }
+  //--- Rendering functions (using CMP textblock/SymbOut)
 
-  void DrawCursor( DIB& dib, int x, int y, int w, int h, int show ) {
+  void DrawCursor( mybitmap& bm, int x, int y, int w, int h, int show ) {
     if(show==0) return;
     int cursor_h=h/4; if(cursor_h<2) cursor_h=2;
     if(x<0||y<0) return;
-    if(x+w>dib.bmX) w=dib.bmX-x;
-    if(y+h>dib.bmY) h=dib.bmY-y;
+    if(x+w>bm.bmX) w=bm.bmX-x;
+    if(y+h>bm.bmY) h=bm.bmY-y;
     if(w<=0||h<=0) return;
     for(int j=0;j<cursor_h;j++) {
-      byte* p = dib.ptr + (y+h-cursor_h+j)*dib.bmX*4 + x*4;
+      byte* p = bm.bitmap + (y+h-cursor_h+j)*bm.bmX*4 + x*4;
       for(int i=0;i<w;i++) {
         p[0]=192; p[1]=192; p[2]=192; p+=4;
       }
     }
   }
 
-  void RenderTerminal( DIB& dib, HDC dc, Font& font, int cursor_blink ) {
-    dib.Reset();
-    int y=0;
+  void RenderTerminal( mybitmap& bm, HDC dc, myfont& font, int cursor_blink ) {
+    // Clear bitmap and textblock
+    bm.Reset();
+    tb.Clear();
+
+    // Render historical lines to textblock
     int vis_start=scroll_pos;
     int vis_end=scroll_pos+max_lines;
     if(vis_end>line_count) vis_end=line_count;
+
     for(int i=vis_start;i<vis_end;i++) {
-      DrawTextClamped(dib,dc,font,LineAt(i),0,y,fg_color);
-      y+=font.hmax;
+      int row = i - vis_start;
+      const char* line = LineAt(i);
+      int len = (int)strlen(line);
+      // Copy line to textblock with attribute 1 (normal text color)
+      for(int j=0; j<len && j<cols; j++) {
+        tb.cell(j, row) = tb.ch(line[j], 1);
+      }
     }
+
     if(!current_line) return;
-    // Build prompt+current_line into a temporary buffer sized to line_width
-    //char buf_local[512];
+
+    // Build prompt+current_line into a temporary buffer
     buf_local[0] = '>';
     strncpy(buf_local+1, current_line, (size_t)line_width - 2);
     buf_local[1 + (line_width - 2)] = 0;
     int buf_len=(int)strlen(buf_local);
+
     int start_char=hscroll_pos;
     int end_char=hscroll_pos+cols;
     if(start_char<0) start_char=0;
     if(end_char>buf_len) end_char=buf_len;
     if(start_char>buf_len) start_char=buf_len;
-    // visible buffer
-    //char vis_buf[512]; 
-    memset(vis_buf,0,line_width);
-    for(int i=start_char;i<end_char;i++) vis_buf[i-start_char]=buf_local[i];
-    DrawTextClamped(dib,dc,font,vis_buf,0,y,fg_color);
+
+    // Render current input line to textblock
+    int input_row = vis_end - vis_start;
+    for(int i=start_char; i<end_char; i++) {
+      int col = i - start_char;
+      if(col < cols && input_row < rows) {
+        tb.cell(col, input_row) = tb.ch(buf_local[i], 1);
+      }
+    }
+
+    // Render textblock to bitmap using CMP
+    tb.Print(font, bm);
+
+    // Draw cursor
     if(cursor_blink) {
       int vis_cursor_pos=(1+cursor_pos)-hscroll_pos;
       if(vis_cursor_pos>=0 && vis_cursor_pos<cols) {
         int cursor_x=font.wmax*vis_cursor_pos;
-        DrawCursor(dib,cursor_x,y,font.wmax,font.hmax,1);
+        int cursor_y=input_row*font.hmax;
+        DrawCursor(bm,cursor_x,cursor_y,font.wmax,font.hmax,1);
       }
     }
   }
@@ -390,6 +331,9 @@ int main(int argc,char**argv) {
   AllocConsole(); freopen("CONOUT$","w",stdout);
   SetConsoleOutputCP(1251);
 
+  // Use palette[1] (pal_Hex) for terminal text: light yellow on black
+  // Palette is already defined in palette.cpp
+
   WNDCLASSA wc;
   memset(&wc,0,sizeof(wc));
   wc.lpfnWndProc=WndProc; wc.hInstance=GetModuleHandle(0);
@@ -397,8 +341,22 @@ int main(int argc,char**argv) {
   wc.hbrBackground=(HBRUSH)GetStockObject(BLACK_BRUSH);
   wc.lpszClassName="TermClass"; RegisterClassA(&wc);
 
-  Terminal::Font font;
-  font.Init("Courier New",-16);
+  // Initialize CMP font
+  myfont font;
+  font.InitFont();
+
+  HDC screenDC = CreateCompatibleDC(0);
+  LOGFONT lf;
+  memset(&lf,0,sizeof(lf));
+  lf.lfHeight = -16;
+  lf.lfWidth = 0;
+  lf.lfWeight = FW_NORMAL;
+  lf.lfCharSet = DEFAULT_CHARSET;
+  lf.lfQuality = NONANTIALIASED_QUALITY;
+  lf.lfPitchAndFamily = FIXED_PITCH | FF_MODERN;
+  strncpy(lf.lfFaceName, "Courier New", sizeof(lf.lfFaceName)-1);
+
+  font.SetFont(screenDC, lf);
 
   int cols=80, rows=25;
   int area_w=font.wmax*cols, area_h=font.hmax*rows;
@@ -449,6 +407,7 @@ int main(int argc,char**argv) {
 
   term.Quit();
   font.Quit();
+  DeleteDC(screenDC);
 
   return 0;
 }
