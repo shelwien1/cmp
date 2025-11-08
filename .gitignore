@@ -1,0 +1,8 @@
+# Compiled object files
+*.o
+
+# Executables
+*.exe
+
+# Backup files
+*.bak

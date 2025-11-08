@@ -128,8 +128,24 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
     while( *arg == ' ' || *arg == '\t' ) arg++;  // skip whitespace
 
     if( *arg == 0 ) {
-      term->AddLine("Usage: g <address>");
+      term->AddLine("Usage: g <address> or g <file_num>,<address>");
       return true;
+    }
+
+    // Check for "g N,addr" syntax
+    int file_num = -1;  // -1 means use current selection or all files
+    const char* comma = strchr(arg, ',');
+    if( comma ) {
+      // Parse file number
+      sscanf(arg, "%d", &file_num);
+      arg = comma + 1;  // Move to address part
+      while( *arg == ' ' || *arg == '\t' ) arg++;  // skip whitespace
+
+      if( file_num < 0 || file_num >= (int)F_num ) {
+        sprintf(buf, "Error: file number must be 0-%d", F_num-1);
+        term->AddLine(buf);
+        return true;
+      }
     }
 
     // Parse address (hex with 0x prefix, or decimal)
@@ -142,14 +158,34 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
       sscanf(arg, "%llu", &addr);
     }
 
-    // Update all file positions
-    for(uint i=0; i<F_num; i++) {
-      if( addr < F[i].F1size ) {
-        F[i].F1pos = addr;
+    // Update file positions based on selection or file_num
+    if( file_num >= 0 ) {
+      // "g N,addr" syntax - change specific file only
+      if( addr < F[file_num].F1size ) {
+        F[file_num].SetFilepos(addr);
+        sprintf(buf, "File %d: jumped to position 0x%llX (%llu)", file_num, addr, addr);
+      } else {
+        sprintf(buf, "Error: address 0x%llX is beyond file %d size", addr, file_num);
       }
+    } else if( lf.cur_view >= 0 ) {
+      // File is selected - change only that file
+      uint i = lf.cur_view;
+      if( addr < F[i].F1size ) {
+        F[i].SetFilepos(addr);
+        sprintf(buf, "File %d: jumped to position 0x%llX (%llu)", i, addr, addr);
+      } else {
+        sprintf(buf, "Error: address 0x%llX is beyond selected file size", addr);
+      }
+    } else {
+      // No selection - change all files
+      for(uint i=0; i<F_num; i++) {
+        if( addr < F[i].F1size ) {
+          F[i].SetFilepos(addr);
+        }
+      }
+      sprintf(buf, "All files: jumped to position 0x%llX (%llu)", addr, addr);
     }
 
-    sprintf(buf, "Jumped to position 0x%llX (%llu)", addr, addr);
     term->AddLine(buf);
     DisplayRedraw();  // Update hex view display
     return true;
@@ -450,17 +486,27 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
     case WM_KEYDOWN: case WM_SYSKEYDOWN:
       curtim = GetTickCount();
       {
-        // If terminal is active, handle messages in terminal (except Esc and F5)
-        if( lf.f_terminal && msg.wParam!=VK_ESCAPE && msg.wParam!=VK_F5 ) {
-          term.HandleMessage(msg, win);
-          break;
-        }
-
-        // Detect key repeat
+        // Detect key repeat and modifiers first
         rp1 = (msg.wParam==lastkey) && (curtim>lasttim+1000);
         rp  = ((msg.lParam>>30)&1) ? 4*(rp1+1) : 1;
         alt = ((msg.lParam>>29)&1);
         ctr = (GetKeyState(VK_CONTROL)>>31)&1;
+
+        // If terminal is active, handle messages in terminal (except special keys)
+        // Allow: Esc, F5, PgUp, PgDn, Ctrl+Home, Ctrl+End
+        if( lf.f_terminal ) {
+          bool passthrough = (msg.wParam == VK_ESCAPE) ||
+                             (msg.wParam == VK_F5) ||
+                             (msg.wParam == VK_PRIOR) ||   // PgUp
+                             (msg.wParam == VK_NEXT) ||    // PgDn
+                             (ctr && msg.wParam == VK_HOME) ||  // Ctrl+Home
+                             (ctr && msg.wParam == VK_END);     // Ctrl+End
+
+          if( !passthrough ) {
+            term.HandleMessage(msg, win);
+            break;
+          }
+        }
         c = msg.wParam;
         if( (c>='0') && (c<='9') ) c='0';  // Treat all digits as same key
 

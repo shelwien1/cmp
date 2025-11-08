@@ -3,7 +3,7 @@
 
 # Compiler settings
 CXX = g++
-CXXFLAGS = -O2 -Wall
+CXXFLAGS = -O2 -Wall -I.
 LDFLAGS = -lgdi32 -luser32 -ladvapi32 -lcomdlg32
 
 # Target executable
