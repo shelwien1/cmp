@@ -3,8 +3,8 @@
 
 # Compiler settings
 CXX = g++
-CXXFLAGS = -O2 -Wall
-LDFLAGS = -lgdi32 -luser32 -ladvapi32 -lcomdlg32
+CXXFLAGS = -O2 -Wall -I.
+LDFLAGS =
 
 # Target executable
 TARGET = cmp.exe
@@ -18,7 +18,8 @@ OBJS = cmp.o \
        hexdump.o \
        window.o \
        config.o \
-       libterminal.o
+       libterminal.o \
+       windows_stub.o
 
 # Header dependencies
 COMMON_HEADERS = common.h
@@ -78,9 +79,13 @@ config.o: config.cpp $(CONFIG_HEADERS) file_win.h
 libterminal.o: libterminal.cpp libterminal.h $(COMMON_HEADERS) $(BITMAP_HEADERS) $(SETFONT_HEADERS) $(TEXTBLOCK_HEADERS) $(TEXTPRINT_HEADERS) $(PALETTE_HEADERS)
 	$(CXX) $(CXXFLAGS) -c libterminal.cpp
 
+# Compile Windows API stub implementations
+windows_stub.o: windows_stub.cpp windows.h
+	$(CXX) $(CXXFLAGS) -c windows_stub.cpp
+
 # Clean build artifacts
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJS) $(TARGET) windows_stub.o
 
 # Rebuild everything
 rebuild: clean all
