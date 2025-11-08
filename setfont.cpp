@@ -29,22 +29,14 @@ void myfont::DumpLF() {
 
 // Show font selection dialog to user
 void myfont::SelectFont( HWND hwndOwner ) {
-  // Temporarily reset packing to Windows default for CHOOSEFONT structure
-  // (common.h sets pack(1) but Windows structures need default alignment)
-#pragma pack(push, 8)
   CHOOSEFONT cf;
-#pragma pack(pop)
-
   bzero(cf);
-  cf.lStructSize = sizeof(CHOOSEFONT);  // Must use sizeof(CHOOSEFONT), not sizeof(cf)
+  cf.lStructSize = sizeof(CHOOSEFONT);
   cf.hwndOwner = hwndOwner;  // Set parent window for proper modal behavior
   cf.lpLogFont = &lf;  // Edit this LOGFONT structure
   // Flags: screen fonts only, fixed-pitch only (for hex display), no vertical fonts
   cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_FIXEDPITCHONLY | CF_NOVERTFONTS;
-  printf( "SelectFont: hwndOwner=%p, sizeof(cf)=%zu, sizeof(CHOOSEFONT)=%zu\n", hwndOwner, sizeof(cf), sizeof(CHOOSEFONT) );
-  BOOL result = ChooseFont(&cf);
-  printf( "SelectFont: ChooseFont returned %d, CommDlgExtendedError=%X\n", result, CommDlgExtendedError() );
-  if( result ) DumpLF();  // If user clicked OK, print the selection
+  if( ChooseFont(&cf) ) DumpLF();  // If user clicked OK, print the selection
 }
 
 // Measure character widths and heights for all 256 characters

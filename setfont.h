@@ -2,9 +2,10 @@
 #ifndef SETFONT_H
 #define SETFONT_H
 
+// Include Windows headers BEFORE common.h to prevent pack(1) from affecting Windows structures
+#include <windows.h>
 #include "common.h"
 #include "bitmap.h"
-#include <windows.h>
 
 // Font management and pre-rendering
 // Pre-renders all 256 characters to bitmaps for fast blitting (avoids slow TextOut in render loop)
