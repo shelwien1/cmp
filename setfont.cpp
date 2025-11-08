@@ -15,27 +15,18 @@ void myfont::Quit( void ) {
 
 // Debug: print LOGFONT structure to console
 void myfont::DumpLF() {
-  uint* x= (uint*)&lf;           // First 5 fields are ints
-  byte* y= (byte*)&lf.lfItalic;  // Next 8 fields are bytes
-  uint i;
-  printf( "{ " );
-  // Print height, width, escapement, orientation, weight
-  for( i=0; i<5; i++ ) printf( "%i,", x[i] ); printf( "  " );
-  // Print italic, underline, strikeout, charset, etc.
-  for( i=0; i<8; i++ ) printf( "%i,", y[i] ); printf( "  " );
-  // Print font face name
-  printf( "\"%s\" }\n", lf.lfFaceName );
+  printf( "Font: %s, Height=%d, Width=%d\n", lf.lfFaceName, lf.lfHeight, lf.lfWidth );
 }
 
 // Show font selection dialog to user
 void myfont::SelectFont( HWND hwndOwner ) {
   CHOOSEFONT cf;
   bzero(cf);
-  cf.lStructSize = sizeof(cf);
+  cf.lStructSize = sizeof(CHOOSEFONT);
   cf.hwndOwner = hwndOwner;  // Set parent window for proper modal behavior
   cf.lpLogFont = &lf;  // Edit this LOGFONT structure
   // Flags: screen fonts only, fixed-pitch only (for hex display), no vertical fonts
-  cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_FIXEDPITCHONLY | CF_INITTOLOGFONTSTRUCT | CF_NOVERTFONTS;
+  cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_FIXEDPITCHONLY | CF_NOVERTFONTS;
   if( ChooseFont(&cf) ) DumpLF();  // If user clicked OK, print the selection
 }
 

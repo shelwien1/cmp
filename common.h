@@ -16,7 +16,8 @@
 #undef EOF
 
 // Pack structures to 1-byte alignment - ensures no padding between fields for binary I/O
-#pragma pack(1)
+// Use push/pop to scope packing to this header only, preventing it from affecting Windows structures
+#pragma pack(push, 1)
 
 // Type aliases for consistent width types across different platforms
 typedef unsigned short word;       // 16-bit unsigned (used for char+attribute pairs)
@@ -105,5 +106,8 @@ static uint flen( FILE* f ) {
  #undef X64
  #define X64flag 0
 #endif
+
+// Restore previous packing state
+#pragma pack(pop)
 
 #endif // COMMON_H
