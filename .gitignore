@@ -6,3 +6,6 @@
 
 # Backup files
 *.bak
+
+# Build logs
+*.log
