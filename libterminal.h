@@ -48,8 +48,13 @@ struct Terminal {
   HDC       dibDC;
   myfont*   font;        // CMP font
 
+  // Command handler callback - called when user enters a command
+  // Returns true if command was handled, false otherwise
+  bool (*command_handler)(Terminal* term, const char* cmd);
+
   // Public methods
-  void Init( myfont& fnt, const RECT& rc );
+  void Init( myfont& fnt, const RECT& rc, int line_cap = 1000, int line_w = 256 );
+  void Resize( const RECT& rc );  // Recalculate rows/cols without full reinitialization
   void Quit();
 
   // Helper to access stored line i

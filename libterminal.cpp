@@ -12,11 +12,11 @@ inline T my_min(T a, U b) {
     return (a < b) ? a : b;
 }
 
-void Terminal::Init( myfont& fnt, const RECT& rc ) {
+void Terminal::Init( myfont& fnt, const RECT& rc, int line_cap, int line_w ) {
 
   // runtime-configurable text buffer sizes
-  lines_capacity = 1000;      // number of historical lines kept
-  line_width     = 256;       // width of each line buffer including terminator
+  lines_capacity = line_cap;  // number of historical lines kept
+  line_width     = line_w;    // width of each line buffer including terminator
 
   // cursor blink interval
   blink_ms = 500;
@@ -24,6 +24,9 @@ void Terminal::Init( myfont& fnt, const RECT& rc ) {
   // default colors
   fg_color = 0xFFFFFF;
   bg_color = 0x000000;
+
+  // no command handler by default
+  command_handler = 0;
 
   area = rc;
   font = &fnt;
@@ -64,6 +67,47 @@ void Terminal::Init( myfont& fnt, const RECT& rc ) {
   // Initialize CMP bitmap and textblock
   bm.AllocBitmap(dibDC, dib_w, dib_h);
   tb.Init(*font, cols, rows, 0, 0);
+}
+
+void Terminal::Resize( const RECT& rc ) {
+  // Update area and recalculate rows/cols based on new dimensions
+  area = rc;
+
+  int new_cols = (area.right - area.left) / font->wmax;
+  int new_rows = (area.bottom - area.top) / font->hmax;
+  if( new_cols<1 ) new_cols = 1;
+  if( new_rows<2 ) new_rows = 2;
+
+  // Only reallocate if dimensions changed
+  if( new_cols != cols || new_rows != rows ) {
+    cols = new_cols;
+    rows = new_rows;
+    max_lines = rows-1;
+
+    // Reallocate bitmap and textblock for new size
+    int dib_w = cols * font->wmax;
+    int dib_h = rows * font->hmax;
+
+    // Free old bitmap
+    if( bm.dib ) DeleteObject(bm.dib);
+
+    // Allocate new bitmap
+    bm.AllocBitmap(dibDC, dib_w, dib_h);
+
+    // Reinitialize textblock
+    tb.Quit();
+    tb.Init(*font, cols, rows, 0, 0);
+
+    // Adjust scroll position if needed
+    if( line_count > max_lines ) {
+      scroll_pos = line_count - max_lines;
+    } else {
+      scroll_pos = 0;
+    }
+
+    // Adjust horizontal scroll
+    UpdateHScroll();
+  }
 }
 
 void Terminal::Quit() {
@@ -165,6 +209,7 @@ void Terminal::ScrollDown() {
 
 void Terminal::EnterLine() {
   if(!current_line) return;
+
   // prepare with prompt
   int tocopy = (int)strlen(current_line);
   if(tocopy > line_width - 2) tocopy = line_width - 2;
@@ -172,7 +217,35 @@ void Terminal::EnterLine() {
   buf_local[0] = '>';
   buf_local[1+tocopy] = 0;
   AddLine(buf_local);
+
+  // Handle built-in commands
+  bool handled = false;
+  if( current_line[0] != 0 ) {
+    // Trim leading spaces
+    const char* cmd = current_line;
+    while( *cmd == ' ' ) cmd++;
+
+    // Check for help commands
+    if( strcmp(cmd, "h") == 0 || strcmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0 ) {
+      AddLine("Available commands:");
+      AddLine("  g <address>     - Go to file position (hex: 0x123 or decimal: 123)");
+      AddLine("  h, help, ?      - Show this help");
+      handled = true;
+    }
+
+    // Try external command handler
+    if( !handled && command_handler ) {
+      handled = command_handler(this, cmd);
+    }
+
+    // If still not handled, show unknown command message
+    if( !handled && *cmd != 0 ) {
+      AddLine("Unknown command. Type 'h' for help.");
+    }
+  }
+
   printf("%s\n", current_line); fflush(stdout);
+
   // clear current_line
   memset(current_line,0,(size_t)line_width);
   cursor_pos=0; hscroll_pos=0;

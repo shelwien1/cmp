@@ -117,6 +117,47 @@ struct DiffScan : thread<DiffScan> {
 
 DiffScan diffscan;  // Global difference scanner thread
 
+// Terminal command handler - processes commands entered in terminal
+// Returns true if command was handled, false otherwise
+bool TerminalCommandHandler(Terminal* term, const char* cmd) {
+  char buf[256];
+
+  // Parse "g" command: go to address
+  if( cmd[0] == 'g' && (cmd[1] == ' ' || cmd[1] == '\t') ) {
+    const char* arg = cmd + 2;
+    while( *arg == ' ' || *arg == '\t' ) arg++;  // skip whitespace
+
+    if( *arg == 0 ) {
+      term->AddLine("Usage: g <address>");
+      return true;
+    }
+
+    // Parse address (hex with 0x prefix, or decimal)
+    qword addr = 0;
+    if( arg[0] == '0' && (arg[1] == 'x' || arg[1] == 'X') ) {
+      // Hex address
+      sscanf(arg + 2, "%llx", &addr);
+    } else {
+      // Decimal address
+      sscanf(arg, "%llu", &addr);
+    }
+
+    // Update all file positions
+    for(uint i=0; i<F_num; i++) {
+      if( addr < F[i].F1size ) {
+        F[i].F1pos = addr;
+      }
+    }
+
+    sprintf(buf, "Jumped to position 0x%llX (%llu)", addr, addr);
+    term->AddLine(buf);
+    DisplayRedraw();  // Update hex view display
+    return true;
+  }
+
+  return false;  // Command not handled
+}
+
 HINSTANCE g_hInstance = GetModuleHandle(0);  // Application instance handle
 
 // Minimal window procedure (we handle everything in message loop, not here)
@@ -292,15 +333,18 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
     termArea.right = WX;
     termArea.bottom = WY + terminal_SY*ch1.hmax;
     term.Init( ch1, termArea );
+    term.command_handler = TerminalCommandHandler;  // Set command handler
     f_terminal_inited = 1;
   }
 
   // Update terminal area position if terminal is visible
   if( lf.f_terminal ) {
-    term.area.left = 0;
-    term.area.top = WY;
-    term.area.right = WX;
-    term.area.bottom = WY + terminal_SY*ch1.hmax;
+    RECT termArea;
+    termArea.left = 0;
+    termArea.top = WY;
+    termArea.right = WX;
+    termArea.bottom = WY + terminal_SY*ch1.hmax;
+    term.Resize( termArea );  // Recalculate rows/cols for new dimensions
     WY += terminal_SY*ch1.hmax;  // Add terminal height to total
   }
 
