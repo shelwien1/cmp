@@ -122,6 +122,11 @@ DiffScan diffscan;  // Global difference scanner thread
 bool TerminalCommandHandler(Terminal* term, const char* cmd) {
   char buf[256];
 
+  // Parse "q", "quit", "exit" commands: quit application
+  if( strcmp(cmd, "q") == 0 || strcmp(cmd, "quit") == 0 || strcmp(cmd, "exit") == 0 ) {
+    exit(0);
+  }
+
   // Parse "g" command: go to address
   if( cmd[0] == 'g' && (cmd[1] == ' ' || cmd[1] == '\t') ) {
     const char* arg = cmd + 2;
@@ -129,6 +134,7 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
 
     if( *arg == 0 ) {
       term->AddLine("Usage: g <address> or g <file_num>,<address>");
+      term->AddLine("  Address can be: hex (0x...), decimal, or EOF");
       return true;
     }
 
@@ -148,9 +154,14 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
       }
     }
 
-    // Parse address (hex with 0x prefix, or decimal)
+    // Parse address (hex with 0x prefix, decimal, or "EOF")
     qword addr = 0;
-    if( arg[0] == '0' && (arg[1] == 'x' || arg[1] == 'X') ) {
+    bool is_eof = false;
+
+    if( strcasecmp(arg, "EOF") == 0 ) {
+      // Special EOF address
+      is_eof = true;
+    } else if( arg[0] == '0' && (arg[1] == 'x' || arg[1] == 'X') ) {
       // Hex address
       sscanf(arg + 2, "%llx", &addr);
     } else {
@@ -161,6 +172,10 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
     // Update file positions based on selection or file_num
     if( file_num >= 0 ) {
       // "g N,addr" syntax - change specific file only
+      if( is_eof ) {
+        qword hexview_size = lf.BX * lf.BY;
+        addr = (F[file_num].F1size > hexview_size) ? F[file_num].F1size - hexview_size : 0;
+      }
       if( addr < F[file_num].F1size ) {
         F[file_num].SetFilepos(addr);
         sprintf(buf, "File %d: jumped to position 0x%llX (%llu)", file_num, addr, addr);
@@ -170,6 +185,10 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
     } else if( lf.cur_view >= 0 ) {
       // File is selected - change only that file
       uint i = lf.cur_view;
+      if( is_eof ) {
+        qword hexview_size = lf.BX * lf.BY;
+        addr = (F[i].F1size > hexview_size) ? F[i].F1size - hexview_size : 0;
+      }
       if( addr < F[i].F1size ) {
         F[i].SetFilepos(addr);
         sprintf(buf, "File %d: jumped to position 0x%llX (%llu)", i, addr, addr);
@@ -178,12 +197,14 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
       }
     } else {
       // No selection - change all files
+      qword hexview_size = lf.BX * lf.BY;
       for(uint i=0; i<F_num; i++) {
-        if( addr < F[i].F1size ) {
-          F[i].SetFilepos(addr);
+        qword file_addr = is_eof ? ((F[i].F1size > hexview_size) ? F[i].F1size - hexview_size : 0) : addr;
+        if( file_addr < F[i].F1size ) {
+          F[i].SetFilepos(file_addr);
         }
       }
-      sprintf(buf, "All files: jumped to position 0x%llX (%llu)", addr, addr);
+      sprintf(buf, is_eof ? "All files: jumped to EOF" : "All files: jumped to position 0x%llX (%llu)", addr, addr);
     }
 
     term->AddLine(buf);
@@ -493,14 +514,20 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
         ctr = (GetKeyState(VK_CONTROL)>>31)&1;
 
         // If terminal is active, handle messages in terminal (except special keys)
-        // Allow: Esc, F5, PgUp, PgDn, Ctrl+Home, Ctrl+End
+        // Allow: Esc, F5, PgUp, PgDn, Ctrl+Home, Ctrl+End, Ctrl+Arrows, Tab, F6
         if( lf.f_terminal ) {
           bool passthrough = (msg.wParam == VK_ESCAPE) ||
                              (msg.wParam == VK_F5) ||
                              (msg.wParam == VK_PRIOR) ||   // PgUp
                              (msg.wParam == VK_NEXT) ||    // PgDn
+                             (msg.wParam == VK_TAB) ||     // Tab
+                             (msg.wParam == VK_F6) ||      // F6
                              (ctr && msg.wParam == VK_HOME) ||  // Ctrl+Home
-                             (ctr && msg.wParam == VK_END);     // Ctrl+End
+                             (ctr && msg.wParam == VK_END) ||   // Ctrl+End
+                             (ctr && msg.wParam == VK_LEFT) ||  // Ctrl+Left
+                             (ctr && msg.wParam == VK_RIGHT) || // Ctrl+Right
+                             (ctr && msg.wParam == VK_UP) ||    // Ctrl+Up
+                             (ctr && msg.wParam == VK_DOWN);    // Ctrl+Down
 
           if( !passthrough ) {
             term.HandleMessage(msg, win);
