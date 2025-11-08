@@ -25,6 +25,7 @@
 #include "hexdump.h"
 #include "window.h"
 #include "config.h"
+#include "libterminal.h"
 
 // Help text with ~ markers for highlighting (~ toggles between normal and highlighted colors)
 char helptext[] =
@@ -53,6 +54,10 @@ uint F_num;                   // Actual number of files opened
 
 textblock tb_help;            // Help text buffer (bottom of screen)
 uint help_SY;                 // Help text height in lines
+
+Terminal term;                // Terminal emulator instance
+uint terminal_SY;             // Terminal height in lines
+uint f_terminal_inited = 0;   // Terminal initialized flag (preserve history)
 
 uint f_started = 0;           // First-time initialization flag (prevents re-init)
 volatile uint f_busy = 0;     // Background difference scan in progress flag
@@ -151,6 +156,7 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
 
   LoadConfig();  // Load saved configuration from registry
   tb_help.textsize( helptext, 0, &help_SY );  // Calculate help text height
+  terminal_SY = help_SY;  // Terminal uses same height as help box
 
   // Get window frame metrics (borders, titlebar) to calculate client area
   const int wfr_x = GetSystemMetrics(SM_CXFIXEDFRAME) + GetSystemMetrics(SM_CXBORDER);
@@ -218,6 +224,8 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
       tb[i].Quit();   // Free text buffers
       F[i].Quit();    // Free file resources
     }
+    // Note: We don't quit terminal here to preserve history across toggles
+    // Terminal will be reinitialized below if needed
     ch1.Quit();  // Free font resources
   }
 
@@ -239,8 +247,8 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
     WX = 2*wfr_x;  // Start with frame borders
     for(i=0;i<F_num;i++) WX += F[i].Calc_WCX( mBX, lf.f_addr64, (i!=F_num-1) ) * ch1.wmax;
 
-    // Calculate required height (hex grid + optional help text + frame)
-    WY = mBY*ch1.hmax + lf.f_help* help_SY*ch1.hmax + 2*wfr_y+wfr_c;
+    // Calculate required height (hex grid + optional help text + optional terminal + frame)
+    WY = mBY*ch1.hmax + lf.f_help* help_SY*ch1.hmax + lf.f_terminal* terminal_SY*ch1.hmax + 2*wfr_y+wfr_c;
 
     // If doesn't fit, clear this bit
     if( WX>bm1.bmX ) mBX&=~(1<<j);
@@ -275,6 +283,27 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
     tb_help.Print( helptext, pal_Help1,pal_Help2, 1,0 );  // Print help text
     WY += help_SY*ch1.hmax;  // Add help height to total
   }
+
+  // Initialize terminal once (preserve history across toggles)
+  if( f_terminal_inited==0 ) {
+    RECT termArea;
+    termArea.left = 0;
+    termArea.top = WY;
+    termArea.right = WX;
+    termArea.bottom = WY + terminal_SY*ch1.hmax;
+    term.Init( ch1, termArea );
+    f_terminal_inited = 1;
+  }
+
+  // Update terminal area position if terminal is visible
+  if( lf.f_terminal ) {
+    term.area.left = 0;
+    term.area.top = WY;
+    term.area.right = WX;
+    term.area.bottom = WY + terminal_SY*ch1.hmax;
+    WY += terminal_SY*ch1.hmax;  // Add terminal height to total
+  }
+
   WY += 2*wfr_y+wfr_c;  // Add frame borders to total height
 
   printf( "WX=%i WY=%i bmX=%i bmY=%i\n", WX,WY,bm1.bmX,bm1.bmY );  // Debug output
@@ -305,7 +334,11 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
       goto m_break;
 
     case WM_TIMER:
-      // Timer tick (100ms): redraw for animated selection box
+      // Timer tick (100ms): redraw for animated selection box and terminal cursor blink
+      if( lf.f_terminal ) {
+        MSG dummy_msg = {0};
+        term.HandleMessage(dummy_msg, win);  // Check cursor blink timer
+      }
       DisplayRedraw();
       break;
 
@@ -341,6 +374,12 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
           tb_help.Print(ch1,bm1);
         }
 
+        // Render terminal
+        if( lf.f_terminal ) {
+          DrawLine(dibDC,hPen_help, 0,term.area.top, WX,term.area.top );
+          term.RenderToWindow(dibDC);
+        }
+
         // Draw selection box around active file view
         if( (lf.cur_view>=0) && (lf.cur_view<F_num) ) {
           i = lf.cur_view;
@@ -364,6 +403,12 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
     case WM_KEYDOWN: case WM_SYSKEYDOWN:
       curtim = GetTickCount();
       {
+        // If terminal is active, handle messages in terminal (except Esc and F5)
+        if( lf.f_terminal && msg.wParam!=VK_ESCAPE && msg.wParam!=VK_F5 ) {
+          term.HandleMessage(msg, win);
+          break;
+        }
+
         // Detect key repeat
         rp1 = (msg.wParam==lastkey) && (curtim>lasttim+1000);
         rp  = ((msg.lParam>>30)&1) ? 4*(rp1+1) : 1;
@@ -383,8 +428,18 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
             exit(0);
 
           case VK_F1:
-            lf.f_help ^= 1;
-            goto Restart;
+            if( lf.f_terminal==0 ) {  // Only allow F1 if terminal is off
+              lf.f_help ^= 1;
+              goto Restart;
+            }
+            break;
+
+          case VK_F5:
+            if( lf.f_help==0 ) {  // Only allow F5 if help is off
+              lf.f_terminal ^= 1;
+              goto Restart;
+            }
+            break;
 
           case VK_TAB:
             lf.cur_view = ((lf.cur_view+1+1) % (F_num+1)) -1;
@@ -472,6 +527,13 @@ Redraw:
 
       if( lastkey!=msg.wParam ) lasttim = curtim;
       lastkey = msg.wParam;
+      break;
+
+    case WM_CHAR:
+      // If terminal is active, pass WM_CHAR messages to terminal for typing
+      if( lf.f_terminal ) {
+        term.HandleMessage(msg, win);
+      }
       break;
 
     default:

@@ -17,7 +17,8 @@ OBJS = cmp.o \
        textprint.o \
        hexdump.o \
        window.o \
-       config.o
+       config.o \
+       libterminal.o
 
 # Header dependencies
 COMMON_HEADERS = common.h
@@ -42,7 +43,7 @@ $(TARGET): $(OBJS)
 # Compile main file
 cmp.o: cmp.cpp $(COMMON_HEADERS) $(FILE_WIN_HEADERS) $(THREAD_HEADERS) $(BITMAP_HEADERS) \
        $(SETFONT_HEADERS) $(PALETTE_HEADERS) $(TEXTBLOCK_HEADERS) $(TEXTPRINT_HEADERS) \
-       $(HEXDUMP_HEADERS) $(WINDOW_HEADERS) $(CONFIG_HEADERS)
+       $(HEXDUMP_HEADERS) $(WINDOW_HEADERS) $(CONFIG_HEADERS) libterminal.h
 	$(CXX) $(CXXFLAGS) -c cmp.cpp
 
 # Compile file_win module
@@ -73,6 +74,10 @@ window.o: window.cpp $(WINDOW_HEADERS)
 config.o: config.cpp $(CONFIG_HEADERS) file_win.h
 	$(CXX) $(CXXFLAGS) -c config.cpp
 
+# Compile libterminal module
+libterminal.o: libterminal.cpp libterminal.h $(COMMON_HEADERS) $(BITMAP_HEADERS) $(SETFONT_HEADERS) $(TEXTBLOCK_HEADERS) $(TEXTPRINT_HEADERS) $(PALETTE_HEADERS)
+	$(CXX) $(CXXFLAGS) -c libterminal.cpp
+
 # Clean build artifacts
 clean:
 	rm -f $(OBJS) $(TARGET)
@@ -81,7 +86,7 @@ clean:
 rebuild: clean all
 
 # Terminal emulator target
-terminal.exe: terminal.cpp setfont.o palette.o textprint.o
+terminal.exe: terminal.cpp libterminal.o setfont.o palette.o textprint.o
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 .PHONY: all clean rebuild
