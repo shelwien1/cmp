@@ -36,7 +36,10 @@ void myfont::SelectFont( HWND hwndOwner ) {
   cf.lpLogFont = &lf;  // Edit this LOGFONT structure
   // Flags: screen fonts only, fixed-pitch only (for hex display), no vertical fonts
   cf.Flags = CF_SCREENFONTS | CF_INITTOLOGFONTSTRUCT | CF_FIXEDPITCHONLY | CF_INITTOLOGFONTSTRUCT | CF_NOVERTFONTS;
-  if( ChooseFont(&cf) ) DumpLF();  // If user clicked OK, print the selection
+  printf( "SelectFont: hwndOwner=%p, about to call ChooseFont\n", hwndOwner );
+  BOOL result = ChooseFont(&cf);
+  printf( "SelectFont: ChooseFont returned %d, CommDlgExtendedError=%X\n", result, CommDlgExtendedError() );
+  if( result ) DumpLF();  // If user clicked OK, print the selection
 }
 
 // Measure character widths and heights for all 256 characters
