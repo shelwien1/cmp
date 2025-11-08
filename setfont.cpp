@@ -15,16 +15,7 @@ void myfont::Quit( void ) {
 
 // Debug: print LOGFONT structure to console
 void myfont::DumpLF() {
-  uint* x= (uint*)&lf;           // First 5 fields are ints
-  byte* y= (byte*)&lf.lfItalic;  // Next 8 fields are bytes
-  uint i;
-  printf( "{ " );
-  // Print height, width, escapement, orientation, weight
-  for( i=0; i<5; i++ ) printf( "%i,", x[i] ); printf( "  " );
-  // Print italic, underline, strikeout, charset, etc.
-  for( i=0; i<8; i++ ) printf( "%i,", y[i] ); printf( "  " );
-  // Print font face name
-  printf( "\"%s\" }\n", lf.lfFaceName );
+  printf( "Font: %s, Height=%d, Width=%d\n", lf.lfFaceName, lf.lfHeight, lf.lfWidth );
 }
 
 // Show font selection dialog to user
