@@ -229,6 +229,7 @@ void Terminal::EnterLine() {
     if( strcmp(cmd, "h") == 0 || strcmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0 ) {
       AddLine("Available commands:");
       AddLine("  g <address>     - Go to file position (hex: 0x123 or decimal: 123)");
+      AddLine("  l, list         - List all open files with their indices");
       AddLine("  h, help, ?      - Show this help");
       handled = true;
     }
