@@ -51,6 +51,7 @@ myfont    ch1;                // Font renderer with pre-rendered characters
 hexfile   F[N_VIEWS];         // File viewers (one per file)
 textblock tb[N_VIEWS];        // Text buffers for each file's display
 uint F_num;                   // Actual number of files opened
+char* F_names[N_VIEWS];       // Filenames for each opened file
 
 textblock tb_help;            // Help text buffer (bottom of screen)
 uint help_SY;                 // Help text height in lines
@@ -85,14 +86,15 @@ struct DiffScan : thread<DiffScan> {
     // Continue scanning while not cancelled by user
     while( f_busy ) {
       delta=0;  // Count of matching bytes in current view
+      ff_num=0;  // Initialize EOF file count
       // Check each byte in current view
       for( j=0; j<F[0].textlen; j++ ) {
-        c=0; d=-1; ff_num=0;
+        c=0; d=-1;
         // Compare this byte across all files
         for(i=0;i<F_num;i++) {
           x[i] = F[i].viewdata(j);      // Get byte from file i
-          ff_num += (x[i]==-1);         // Count how many files are at EOF
-          if( x[i]!=-1 ) c|=x[i],d&=x[i];  // Accumulate OR and AND of all bytes
+          ff_num += (x[i]==(uint)-1);   // Count how many files are at EOF
+          if( x[i]!=(uint)-1 ) c|=x[i],d&=x[i];  // Accumulate OR and AND of all bytes
         }
         // Check if all files have same value (c==x[i] && d==x[i] means all bits match)
         for(flag=1,i=0;i<F_num;i++) flag &= ((c==x[i])&&(d==x[i]));
@@ -117,6 +119,42 @@ struct DiffScan : thread<DiffScan> {
 
 DiffScan diffscan;  // Global difference scanner thread
 
+// Helper function to truncate a path in the middle if it's too long
+// Format: "C:\path1\...\path2\file.ext"
+void TruncatePath(char* dest, const char* path, int max_width) {
+  int path_len = strlen(path);
+
+  if( path_len <= max_width ) {
+    // Path fits, just copy it
+    strcpy(dest, path);
+    return;
+  }
+
+  // Path doesn't fit, need to truncate in the middle
+  // Reserve space for "..." (3 chars)
+  int avail = max_width - 3;
+  if( avail < 10 ) {
+    // Too narrow, just truncate at end
+    strncpy(dest, path, max_width);
+    dest[max_width] = 0;
+    return;
+  }
+
+  // Try to keep more of the end (filename) than the beginning
+  int end_len = avail * 2 / 3;  // 2/3 for end (filename and parent dirs)
+  int start_len = avail - end_len;  // 1/3 for start (drive and root dirs)
+
+  // Copy start portion
+  strncpy(dest, path, start_len);
+  dest[start_len] = 0;
+
+  // Add ellipsis
+  strcat(dest, "...");
+
+  // Add end portion (from path + path_len - end_len)
+  strcat(dest, path + path_len - end_len);
+}
+
 // Terminal command handler - processes commands entered in terminal
 // Returns true if command was handled, false otherwise
 bool TerminalCommandHandler(Terminal* term, const char* cmd) {
@@ -125,6 +163,25 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
   // Parse "q", "quit", "exit" commands: quit application
   if( strcmp(cmd, "q") == 0 || strcmp(cmd, "quit") == 0 || strcmp(cmd, "exit") == 0 ) {
     exit(0);
+  }
+
+  // Parse "l", "list" commands: list all open files
+  if( strcmp(cmd, "l") == 0 || strcmp(cmd, "list") == 0 ) {
+    if( F_num == 0 ) {
+      term->AddLine("No files open.");
+    } else {
+      term->AddLine("Open files:");
+      // Reserve space for "N: " prefix (max 2 digits + ": " = 4 chars)
+      int max_path_width = term->cols - 4;
+      char truncated[512];  // Increased buffer size to avoid overflow
+
+      for(uint i=0; i<F_num; i++) {
+        TruncatePath(truncated, F_names[i], max_path_width);
+        snprintf(buf, sizeof(buf), "%u: %s", i, truncated);  // Use snprintf for safety
+        term->AddLine(buf);
+      }
+    }
+    return true;
   }
 
   // Parse "g" command: go to address
@@ -247,6 +304,7 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
   for( i=1; i<Min(DIM(F)+1,Max(2,argc)); i++ ) {
     if( i<argc ) fil1=argv[i];  // Use command-line arg if available
     if( F[i-1].Open(fil1)==0 ) return 1;  // Open file, exit on failure
+    F_names[i-1] = fil1;  // Store filename for later reference
     // Enable 64-bit addresses if any file is >4GB
     if( F[i-1].F1size>0xFFFFFFFFU ) lf.f_addr64=hexfile::f_addr64;
   }
@@ -457,10 +515,10 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
         {
           uint d,x[N_VIEWS];
           for( j=0; j<F[0].textlen; j++ ) {
-            c=0; d=-1;
+            c=0; d=(uint)-1;
             for(i=0;i<F_num;i++) {
               x[i] = F[i].viewdata(j);
-              if( x[i]!=-1 )
+              if( x[i]!=(uint)-1 )
               c|=x[i],d&=x[i];
             }
             // Mark position as different if not all files have same byte
