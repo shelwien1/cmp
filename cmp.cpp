@@ -402,7 +402,7 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
             goto MovePos0;
 
           case 'C': // Change font
-            ch1.SelectFont();
+            ch1.SelectFont(win);
             lf.lf=ch1.lf;
             goto Restart;
 

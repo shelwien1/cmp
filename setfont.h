@@ -26,7 +26,7 @@ struct myfont {
   void DumpLF();
 
   // Show font selection dialog to user
-  void SelectFont( void );
+  void SelectFont( HWND hwndOwner = 0 );
 
   // Measure character widths and heights for all 256 characters
   void GetFontWidth( HDC dibDC );
