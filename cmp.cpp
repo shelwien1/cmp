@@ -629,7 +629,7 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
   hPen_help = ExtCreatePen( PS_GEOMETRIC, 2, &lb, 0, NULL );  // Solid white pen for help separator
 
   int delta;      // Movement delta for navigation
-  int rp1,rp,alt,ctr;  // Key repeat flags, alt key, control key
+  int rp1,rp,alt,ctr,shift;  // Key repeat flags, alt key, control key, shift key
   uint mBX,mBY;   // Maximum bytes per line and lines that fit on screen
   int  WX,WY;     // Window size in pixels
 
@@ -837,6 +837,13 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
         rp  = ((msg.lParam>>30)&1) ? 4*(rp1+1) : 1;
         alt = ((msg.lParam>>29)&1);
         ctr = (GetKeyState(VK_CONTROL)>>31)&1;
+        shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+
+        // Pass through Alt-Shift for Windows language switching
+        if( alt && shift && (msg.wParam == VK_SHIFT || msg.wParam == VK_MENU) ) {
+          DispatchMessage(&msg);
+          break;
+        }
 
         // If terminal is active, handle messages in terminal (except special keys)
         // Allow: Esc, F2, F5, PgUp, PgDn, Ctrl+Home, Ctrl+End, Ctrl+Arrows, Tab, F6

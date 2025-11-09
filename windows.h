@@ -236,6 +236,10 @@ typedef struct _FILETIME {
 #define WM_TIMER                0x0113
 #define WM_MOUSEWHEEL           0x020A
 
+// PeekMessage options
+#define PM_NOREMOVE             0x0000
+#define PM_REMOVE               0x0001
+
 // Virtual key codes
 #define VK_BACK                 0x08
 #define VK_TAB                  0x09
@@ -435,6 +439,7 @@ int UpdateWindow(HWND hWnd);
 
 // Message loop functions
 int GetMessage(MSG* lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax);
+int PeekMessage(MSG* lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
 int DispatchMessage(const MSG* lpMsg);
 int TranslateMessage(const MSG* lpMsg);
 void PostQuitMessage(int nExitCode);
