@@ -238,10 +238,30 @@ DWORD FormatMessageW(DWORD, LPVOID, DWORD, DWORD, LPWSTR lpBuffer, DWORD nSize, 
 }
 
 // ===== String functions =====
+int MultiByteToWideChar(UINT, DWORD, LPCSTR lpMultiByteStr, int cbMultiByte,
+                        LPWSTR lpWideCharStr, int cchWideChar) {
+    if (!lpWideCharStr) {
+        // Calculate required size
+        if (cbMultiByte == -1) return strlen(lpMultiByteStr) + 1;
+        return cbMultiByte;
+    }
+    int n = (cbMultiByte == -1) ? strlen(lpMultiByteStr) + 1 : cbMultiByte;
+    if (n > cchWideChar) n = cchWideChar;
+    for (int i = 0; i < n; i++) {
+        lpWideCharStr[i] = (wchar_t)(unsigned char)lpMultiByteStr[i];
+    }
+    return n;
+}
+
 int WideCharToMultiByte(UINT, DWORD, LPCWSTR lpWideCharStr, int cchWideChar,
                         LPSTR lpMultiByteStr, int cbMultiByte, LPCSTR, int*) {
-    if (!lpMultiByteStr) return cchWideChar;
-    int n = (cchWideChar < cbMultiByte) ? cchWideChar : cbMultiByte;
+    if (!lpMultiByteStr) {
+        // Calculate required size
+        if (cchWideChar == -1) return wcslen(lpWideCharStr) + 1;
+        return cchWideChar;
+    }
+    int n = (cchWideChar == -1) ? wcslen(lpWideCharStr) + 1 : cchWideChar;
+    if (n > cbMultiByte) n = cbMultiByte;
     for (int i = 0; i < n; i++) {
         lpMultiByteStr[i] = (char)lpWideCharStr[i];
     }

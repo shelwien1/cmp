@@ -357,6 +357,7 @@ extern char** __argv;
 
 // Code page constants
 #define CP_OEMCP                       1
+#define CP_UTF8                        65001
 
 // Registry constants
 #define HKEY_CURRENT_USER       ((HKEY)0x80000001)
@@ -525,6 +526,8 @@ DWORD FormatMessageW(DWORD dwFlags, LPVOID lpSource, DWORD dwMessageId, DWORD dw
                      LPWSTR lpBuffer, DWORD nSize, void* Arguments);
 
 // String functions
+int MultiByteToWideChar(UINT CodePage, DWORD dwFlags, LPCSTR lpMultiByteStr, int cbMultiByte,
+                        LPWSTR lpWideCharStr, int cchWideChar);
 int WideCharToMultiByte(UINT CodePage, DWORD dwFlags, LPCWSTR lpWideCharStr, int cchWideChar,
                         LPSTR lpMultiByteStr, int cbMultiByte, LPCSTR lpDefaultChar, int* lpUsedDefaultChar);
 DWORD GetFullPathNameW(LPCWSTR lpFileName, DWORD nBufferLength, LPWSTR lpBuffer, LPWSTR* lpFilePart);
