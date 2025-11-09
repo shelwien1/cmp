@@ -31,6 +31,7 @@
 #include "window.h"
 #include "config.h"
 #include "libterminal.h"
+#include "search.h"
 
 // Help text with ~ markers for highlighting (~ toggles between normal and highlighted colors)
 char helptext[] =
@@ -124,6 +125,77 @@ struct DiffScan : thread<DiffScan> {
 };
 
 DiffScan diffscan;  // Global difference scanner thread
+
+// Search functionality using Search0 from search.h
+struct SearchScan {
+  Search0<256> searcher;  // Pattern searcher with 256-byte capacity
+
+  // Convert OEM string (from Terminal) to UTF-8 using WinAPI
+  // Returns length of UTF-8 string (0 on error)
+  uint OemToUtf8(const char* oem_str, char* utf8_buf, uint buf_size) {
+    // First convert OEM to wide char (UTF-16)
+    int wchar_len = MultiByteToWideChar(CP_OEMCP, 0, oem_str, -1, NULL, 0);
+    if( wchar_len == 0 ) return 0;
+
+    wchar_t* wbuf = new wchar_t[wchar_len];
+    MultiByteToWideChar(CP_OEMCP, 0, oem_str, -1, wbuf, wchar_len);
+
+    // Convert wide char to UTF-8
+    int utf8_len = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, NULL, 0, NULL, NULL);
+    if( utf8_len == 0 || utf8_len > (int)buf_size ) {
+      delete[] wbuf;
+      return 0;
+    }
+
+    WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, utf8_buf, utf8_len, NULL, NULL);
+    delete[] wbuf;
+
+    return utf8_len - 1;  // Exclude null terminator
+  }
+
+  // Search for pattern in specific file, return position or -1LL if not found
+  qword SearchInFile(uint file_idx, qword start_pos) {
+    if( file_idx >= F_num ) return -1LL;
+
+    hexfile& file = F[file_idx];
+    qword file_size = file.F1size;
+    qword pos = start_pos;
+    uint pattern_len = searcher.GetLength();
+
+    if( pattern_len == 0 ) return -1LL;
+
+    // Search through file in blocks
+    const qword block_size = hexfile::datalen;
+
+    while( pos < file_size ) {
+      // Calculate how much to read
+      qword read_size = Min(block_size, file_size - pos);
+      if( read_size < pattern_len ) break;  // Not enough data left
+
+      // Read block into file's data buffer
+      file.SetFilepos(pos);
+      const byte* data = file.databuf + (pos - file.databeg);
+
+      // Search in this block
+      qword found_offset = searcher.Find(data, read_size);
+
+      if( found_offset != (qword)(-1LL) ) {
+        // Found! Return absolute position
+        return pos + found_offset;
+      }
+
+      // Not found in this block, move forward
+      // Move by (block_size - (pattern_len - 1)) to handle patterns spanning blocks
+      qword move_delta = read_size - (pattern_len - 1);
+      if( move_delta < 1 ) move_delta = 1;
+      pos += move_delta;
+    }
+
+    return -1LL;  // Not found
+  }
+};
+
+SearchScan searchscan;  // Global search scanner
 
 // Helper function to truncate a path in the middle if it's too long
 // Format: "C:\path1\...\path2\file.ext"
@@ -224,6 +296,114 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
     sprintf(buf, "Terminal height set to %u rows. Restarting...", terminal_SY);
     term->AddLine(buf);
     f_need_restart = 1;  // Trigger restart to apply changes
+    return true;
+  }
+
+  // Parse "s" command: search for pattern
+  // Syntax: "s <pattern>" or "s# <pattern>" where # is file index
+  if( cmd[0] == 's' && (cmd[1] == ' ' || cmd[1] == '\t' || (cmd[1] >= '0' && cmd[1] <= '9')) ) {
+    // Parse file number if present
+    int file_num = -1;  // -1 means use current selection or file 0
+    const char* pattern_start = cmd + 1;
+
+    if( cmd[1] >= '0' && cmd[1] <= '9' ) {
+      // Parse file index
+      sscanf(cmd + 1, "%d", &file_num);
+
+      if( file_num < 0 || file_num >= (int)F_num ) {
+        sprintf(buf, "Error: file number must be 0-%d", F_num-1);
+        term->AddLine(buf);
+        return true;
+      }
+
+      // Skip to pattern (find first space/tab after number)
+      pattern_start = cmd + 1;
+      while( *pattern_start >= '0' && *pattern_start <= '9' ) pattern_start++;
+      if( *pattern_start != ' ' && *pattern_start != '\t' ) {
+        term->AddLine("Usage: s <pattern> or s# <pattern>");
+        term->AddLine("  # = file index (0-based)");
+        term->AddLine("  pattern = search pattern (UTF-8 string)");
+        return true;
+      }
+    }
+
+    // Skip whitespace to get to pattern
+    while( *pattern_start == ' ' || *pattern_start == '\t' ) pattern_start++;
+
+    if( *pattern_start == 0 ) {
+      term->AddLine("Usage: s <pattern> or s# <pattern>");
+      term->AddLine("  # = file index (0-based)");
+      term->AddLine("  pattern = search pattern (UTF-8 string)");
+      return true;
+    }
+
+    // Convert OEM to UTF-8
+    char utf8_pattern[1024];
+    uint utf8_len = searchscan.OemToUtf8(pattern_start, utf8_pattern, sizeof(utf8_pattern));
+    if( utf8_len == 0 ) {
+      term->AddLine("Error: failed to convert pattern to UTF-8");
+      return true;
+    }
+
+    // Initialize search pattern
+    if( searchscan.searcher.InitPattern(utf8_pattern) == 0 ) {
+      term->AddLine("Error: invalid search pattern");
+      return true;
+    }
+
+    sprintf(buf, "Searching for pattern (length: %u bytes)...", searchscan.searcher.GetLength());
+    term->AddLine(buf);
+
+    // Determine which file(s) to search
+    if( file_num >= 0 ) {
+      // Search in specific file
+      qword start_pos = F[file_num].F1pos;
+      qword found_pos = searchscan.SearchInFile(file_num, start_pos);
+
+      if( found_pos != (qword)(-1LL) ) {
+        F[file_num].SetFilepos(found_pos);
+        sprintf(buf, "File %d: pattern found at position 0x%llX (%llu)", file_num, found_pos, found_pos);
+      } else {
+        sprintf(buf, "File %d: pattern not found", file_num);
+      }
+      term->AddLine(buf);
+
+    } else if( lf.cur_view >= 0 ) {
+      // Selection exists - search only in selected file
+      uint i = lf.cur_view;
+      qword start_pos = F[i].F1pos;
+      qword found_pos = searchscan.SearchInFile(i, start_pos);
+
+      if( found_pos != (qword)(-1LL) ) {
+        F[i].SetFilepos(found_pos);
+        sprintf(buf, "File %d: pattern found at position 0x%llX (%llu)", i, found_pos, found_pos);
+      } else {
+        sprintf(buf, "File %d: pattern not found", i);
+      }
+      term->AddLine(buf);
+
+    } else {
+      // No selection - search in all files and sync positions
+      qword found_pos = (qword)(-1LL);
+      uint found_file = 0;
+
+      // Try to find pattern in file 0 first
+      qword start_pos = F[0].F1pos;
+      found_pos = searchscan.SearchInFile(0, start_pos);
+
+      if( found_pos != (qword)(-1LL) ) {
+        // Found in file 0, update all file positions to match
+        for(uint i=0; i<F_num; i++) {
+          F[i].SetFilepos(found_pos);
+        }
+        sprintf(buf, "Pattern found at position 0x%llX (%llu) - all files synchronized", found_pos, found_pos);
+        term->AddLine(buf);
+      } else {
+        term->AddLine("Pattern not found in file 0");
+      }
+    }
+
+    DisplayRedraw();  // Update hex view display
     return true;
   }
 

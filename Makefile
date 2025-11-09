@@ -19,6 +19,7 @@ OBJS = cmp.o \
        window.o \
        config.o \
        libterminal.o \
+       search.o \
        windows_stub.o
 
 # Header dependencies
@@ -78,6 +79,10 @@ config.o: config.cpp $(CONFIG_HEADERS) file_win.h
 # Compile libterminal module
 libterminal.o: libterminal.cpp libterminal.h $(COMMON_HEADERS) $(BITMAP_HEADERS) $(SETFONT_HEADERS) $(TEXTBLOCK_HEADERS) $(TEXTPRINT_HEADERS) $(PALETTE_HEADERS)
 	$(CXX) $(CXXFLAGS) -c libterminal.cpp
+
+# Compile search module
+search.o: search.cpp search.h $(COMMON_HEADERS)
+	$(CXX) $(CXXFLAGS) -c search.cpp
 
 # Compile Windows API stub implementations
 windows_stub.o: windows_stub.cpp windows.h
