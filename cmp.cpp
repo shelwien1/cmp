@@ -829,7 +829,13 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
       }
       break;
 
-    case WM_KEYDOWN: case WM_SYSKEYDOWN:
+    case WM_SYSKEYDOWN:
+      // Let system key messages (Alt+key) pass through to DefWindowProc
+      // This allows Windows to handle Alt-Shift language switching in real-time
+      DispatchMessage(&msg);
+      break;
+
+    case WM_KEYDOWN:
       curtim = GetTickCount();
       {
         // Detect key repeat and modifiers first
@@ -979,12 +985,6 @@ Redraw:
 
       if( lastkey!=msg.wParam ) lasttim = curtim;
       lastkey = msg.wParam;
-
-      // Dispatch system key messages and modifier keys to DefWindowProc
-      // This allows Windows to handle Alt-Shift language switching
-      if( (msg.message == WM_SYSKEYDOWN) || (msg.wParam == VK_SHIFT) || (msg.wParam == VK_MENU) || (msg.wParam == VK_CONTROL) ) {
-        DispatchMessage(&msg);
-      }
       break;
 
     case WM_CHAR:
