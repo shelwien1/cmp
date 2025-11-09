@@ -47,6 +47,7 @@ int GetMessage(MSG* lpMsg, HWND, UINT, UINT) {
     if (lpMsg) memset(lpMsg, 0, sizeof(MSG));
     return 0;
 }
+int PeekMessage(MSG*, HWND, UINT, UINT, UINT) { return 0; }
 int DispatchMessage(const MSG*) { return 0; }
 int TranslateMessage(const MSG*) { return 0; }
 void PostQuitMessage(int) { }
