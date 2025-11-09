@@ -31,6 +31,7 @@ struct Terminal {
   char*   current_line;        // points into lines_data (the extra row)
   char*   buf_local;
   char*   vis_buf;
+  char*   last_command;        // stores last executed command for Ctrl-E repeat
 
   int     lines_capacity;      // number of stored lines
   int     line_width;          // chars per line (including terminating NUL)

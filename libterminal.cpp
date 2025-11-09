@@ -38,19 +38,21 @@ void Terminal::Init( myfont& fnt, const RECT& rc, int line_cap, int line_w ) {
   if( rows<2 ) rows = 2;
   max_lines = rows-1;
 
-  // allocate contiguous storage for lines + one working current_line row
-  lines_data = (char*)malloc( (lines_capacity+3) * line_width );
+  // allocate contiguous storage for lines + one working current_line row + last_command
+  lines_data = (char*)malloc( (lines_capacity+4) * line_width );
   if(!lines_data) {
     lines_capacity = 0;
     line_width = 0;
     current_line = 0;
     buf_local = 0;
     vis_buf = 0;
+    last_command = 0;
   } else {
-    memset(lines_data, 0, (lines_capacity+3) * line_width);
+    memset(lines_data, 0, (lines_capacity+4) * line_width);
     current_line = lines_data + (lines_capacity+0) * line_width; // last row reserved for editing
     buf_local = lines_data + (lines_capacity+1) * line_width;
     vis_buf = lines_data + (lines_capacity+2) * line_width;
+    last_command = lines_data + (lines_capacity+3) * line_width; // store last command
   }
 
   line_count = 0;
@@ -114,7 +116,7 @@ void Terminal::Quit() {
   tb.Quit();
   if( bm.dib ) { DeleteObject(bm.dib); bm.dib=0; }
   if( dibDC ) { DeleteDC(dibDC); dibDC=0; }
-  if(lines_data) { free(lines_data); lines_data=0; current_line=0; }
+  if(lines_data) { free(lines_data); lines_data=0; current_line=0; last_command=0; }
 }
 
 // helper to access stored line i
@@ -248,6 +250,12 @@ void Terminal::ScrollDown() {
 void Terminal::EnterLine() {
   if(!current_line) return;
 
+  // Save current command to last_command (for Ctrl-E repeat)
+  if( current_line[0] != 0 && last_command ) {
+    strncpy(last_command, current_line, (size_t)line_width - 1);
+    last_command[line_width - 1] = 0;
+  }
+
   // prepare with prompt
   int tocopy = (int)strlen(current_line);
   if(tocopy > line_width - 2) tocopy = line_width - 2;
@@ -296,6 +304,19 @@ uint Terminal::HandleMessage(const MSG& msg, HWND hwnd) {
         case VK_END:    MoveCursorEnd(); break;
         case VK_UP:     ScrollUp(); break;
         case VK_DOWN:   ScrollDown(); break;
+        case 'E':
+          // Ctrl-E: Repeat last command
+          if( (GetKeyState(VK_CONTROL) & 0x8000) && last_command && last_command[0] != 0 ) {
+            // Clear current line and copy last command
+            memset(current_line, 0, (size_t)line_width);
+            strncpy(current_line, last_command, (size_t)line_width - 1);
+            current_line[line_width - 1] = 0;
+            cursor_pos = (int)strlen(current_line);
+            UpdateHScroll();
+          } else {
+            handled = 0;
+          }
+          break;
         case VK_INSERT:
           // Shift-Insert: paste from clipboard
           if( GetKeyState(VK_SHIFT) & 0x8000 ) {
