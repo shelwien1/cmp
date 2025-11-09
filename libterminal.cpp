@@ -80,15 +80,19 @@ void Terminal::Resize( const RECT& rc ) {
   if( new_cols<1 ) new_cols = 1;
   if( new_rows<2 ) new_rows = 2;
 
-  // Only reallocate if dimensions changed
-  if( new_cols != cols || new_rows != rows ) {
+  // Calculate new bitmap dimensions (depends on both cols/rows and font size)
+  int new_dib_w = new_cols * font->wmax;
+  int new_dib_h = new_rows * font->hmax;
+
+  // Only reallocate if bitmap dimensions changed (cols/rows or font size)
+  if( new_dib_w != bm.bmX || new_dib_h != bm.bmY ) {
     cols = new_cols;
     rows = new_rows;
     max_lines = rows-1;
 
     // Reallocate bitmap and textblock for new size
-    int dib_w = cols * font->wmax;
-    int dib_h = rows * font->hmax;
+    int dib_w = new_dib_w;
+    int dib_h = new_dib_h;
 
     // Free old bitmap
     if( bm.dib ) DeleteObject(bm.dib);
