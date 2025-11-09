@@ -743,18 +743,6 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
 
     if(0) { m_break: break; }  // Exit label (jumped to from WM_CLOSE)
 
-    // Pass through Alt-Shift for Windows language switching
-    // Must check BEFORE TranslateMessage to avoid interfering with the system hotkey
-    if( (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) ) {
-      int alt_check = ((msg.lParam>>29)&1);
-      int shift_check = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-      if( alt_check && shift_check && (msg.wParam == VK_SHIFT || msg.wParam == VK_MENU) ) {
-        // Don't call TranslateMessage - just dispatch directly to DefWindowProc
-        DispatchMessage(&msg);
-        continue;  // Skip all other processing for this message
-      }
-    }
-
     // Convert WM_KEYDOWN to WM_CHAR for character input (needed for terminal typing)
     TranslateMessage(&msg);
 
@@ -991,6 +979,12 @@ Redraw:
 
       if( lastkey!=msg.wParam ) lasttim = curtim;
       lastkey = msg.wParam;
+
+      // Dispatch system key messages and modifier keys to DefWindowProc
+      // This allows Windows to handle Alt-Shift language switching
+      if( (msg.message == WM_SYSKEYDOWN) || (msg.wParam == VK_SHIFT) || (msg.wParam == VK_MENU) || (msg.wParam == VK_CONTROL) ) {
+        DispatchMessage(&msg);
+      }
       break;
 
     case WM_CHAR:
