@@ -13,6 +13,7 @@ struct viewstate {
   uint f_addr64;   // 64-bit address display flag (vs 32-bit)
   uint f_help;     // Help text visible flag (F1 toggles)
   uint f_terminal; // Terminal visible flag (F5 toggles)
+  uint display_mode; // Display mode: 0=combined, 1=hex-only, 2=text-only (F2 toggles)
 };
 
 // Default configuration: Consolas font, 32 bytes/line, no selection, 32-bit addresses, no help

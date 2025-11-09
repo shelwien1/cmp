@@ -13,6 +13,11 @@
 // Link against COMDLG32 - needed for common dialogs (font selection, file open)
 #pragma comment(lib,"comdlg32.lib")
 
+// Define VK_F2 if not already defined (some Windows headers don't include it)
+#ifndef VK_F2
+#define VK_F2 0x71
+#endif
+
 // Include all module headers
 #include "common.h"
 #include "file_win.h"
@@ -439,7 +444,7 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
 
     // Calculate required width for all file views side-by-side
     WX = 2*wfr_x;  // Start with frame borders
-    for(i=0;i<F_num;i++) WX += F[i].Calc_WCX( mBX, lf.f_addr64, (i!=F_num-1) ) * ch1.wmax;
+    for(i=0;i<F_num;i++) WX += F[i].Calc_WCX( mBX, lf.f_addr64, (i!=F_num-1), lf.display_mode ) * ch1.wmax;
 
     // Calculate required height (hex grid + optional help text + optional terminal + frame)
     WY = mBY*ch1.hmax + lf.f_help* help_SY*ch1.hmax + lf.f_terminal* terminal_SY*ch1.hmax + 2*wfr_y+wfr_c;
@@ -461,10 +466,11 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
   // Initialize text buffers for each file view (layout side-by-side)
   WX=0*wfr_x;
   for(i=0;i<F_num;i++ ) {
-    uint WCX = F[i].Calc_WCX( mBX, lf.f_addr64, (i!=F_num-1) );  // Chars needed per line
+    uint WCX = F[i].Calc_WCX( mBX, lf.f_addr64, (i!=F_num-1), lf.display_mode );  // Chars needed per line
     tb[i].Init( ch1, WCX,lf.BY, WX,0 );  // Create text buffer at horizontal position WX
     WX += WCX*ch1.wmax;  // Advance horizontal position for next file
     F[i].SetTextbuf( tb[i], lf.BX, ((i!=F_num-1)?hexfile::f_vertline:0) | lf.f_addr64);
+    F[i].display_mode = lf.display_mode;  // Set display mode for this file
     F[i].SetFilepos( F[i].F1pos );  // Initialize file position (loads cache)
   }
   WX+=2*wfr_x;  // Add frame borders to total width
@@ -615,9 +621,10 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
         ctr = (GetKeyState(VK_CONTROL)>>31)&1;
 
         // If terminal is active, handle messages in terminal (except special keys)
-        // Allow: Esc, F5, PgUp, PgDn, Ctrl+Home, Ctrl+End, Ctrl+Arrows, Tab, F6
+        // Allow: Esc, F2, F5, PgUp, PgDn, Ctrl+Home, Ctrl+End, Ctrl+Arrows, Tab, F6
         if( lf.f_terminal ) {
           bool passthrough = (msg.wParam == VK_ESCAPE) ||
+                             (msg.wParam == VK_F2) ||      // F2
                              (msg.wParam == VK_F5) ||
                              (msg.wParam == VK_PRIOR) ||   // PgUp
                              (msg.wParam == VK_NEXT) ||    // PgDn
@@ -654,6 +661,11 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
               goto Restart;
             }
             break;
+
+          case VK_F2:
+            // Toggle display mode: combined -> hex-only -> text-only -> combined
+            lf.display_mode = (lf.display_mode + 1) % 3;
+            goto Restart;
 
           case VK_F5:
             if( lf.f_help==0 ) {  // Only allow F5 if help is off
