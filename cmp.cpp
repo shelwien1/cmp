@@ -416,6 +416,9 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
     // Set busy flag to enable search (and allow interruption)
     f_busy = 1;
 
+    // Save original position in case pattern is not found
+    qword original_pos = F[search_file_idx].F1pos;
+
     // Perform the search with progress updates (start from next position after current)
     qword start_pos = F[search_file_idx].F1pos + 1;
     qword found_pos = searchscan.SearchInFile(search_file_idx, start_pos, term);
@@ -438,6 +441,8 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
       }
       term->AddLine(buf);
     } else {
+      // Pattern not found - restore original position
+      F[search_file_idx].SetFilepos(original_pos);
       sprintf(buf, "File %d: pattern not found", search_file_idx);
       term->AddLine(buf);
     }
