@@ -366,6 +366,7 @@ extern char** __argv;
 
 // Clipboard constants
 #define CF_TEXT                        1
+#define CF_UNICODETEXT                 13
 #define GMEM_MOVEABLE                  0x0002
 
 // Registry constants
