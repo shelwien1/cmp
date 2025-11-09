@@ -469,8 +469,7 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
     uint WCX = F[i].Calc_WCX( mBX, lf.f_addr64, (i!=F_num-1), lf.display_mode );  // Chars needed per line
     tb[i].Init( ch1, WCX,lf.BY, WX,0 );  // Create text buffer at horizontal position WX
     WX += WCX*ch1.wmax;  // Advance horizontal position for next file
-    F[i].SetTextbuf( tb[i], lf.BX, ((i!=F_num-1)?hexfile::f_vertline:0) | lf.f_addr64);
-    F[i].display_mode = lf.display_mode;  // Set display mode for this file
+    F[i].SetTextbuf( tb[i], lf.BX, ((i!=F_num-1)?hexfile::f_vertline:0) | lf.f_addr64, lf.display_mode);
     F[i].SetFilepos( F[i].F1pos );  // Initialize file position (loads cache)
   }
   WX+=2*wfr_x;  // Add frame borders to total width

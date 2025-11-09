@@ -47,7 +47,7 @@ struct hexfile {
   uint Calc_WCX( uint mBX, uint f_addr64, uint f_vertline, uint mode );
 
   // Initialize textbuffer parameters (called during setup/resize)
-  void SetTextbuf( textblock& tb1, uint _BX, uint _flags=0 );
+  void SetTextbuf( textblock& tb1, uint _BX, uint _flags=0, uint _display_mode=MODE_COMBINED );
 
   // Cleanup resources
   void Quit( void );
