@@ -124,8 +124,37 @@ char* Terminal::LineAt(int i) {
 
 // content ops (updated to use runtime sizes)
 void Terminal::AddLine(const char* text) {
+  // Handle newlines in text by splitting into multiple lines
+  const char* start = text;
+  const char* newline;
+
+  while( (newline = strchr(start, '\n')) != NULL ) {
+    // Copy up to the newline
+    int len = (int)(newline - start);
+    if( len > line_width - 1 ) len = line_width - 1;
+
+    if( line_count < lines_capacity ) {
+      strncpy(LineAt(line_count), start, (size_t)len);
+      LineAt(line_count)[len] = 0;
+      line_count++;
+      if( line_count > max_lines ) {
+        scroll_pos = line_count - max_lines;
+      }
+    } else {
+      // simple rollover: drop the oldest line, shift memory
+      memmove(lines_data, lines_data + line_width, (size_t)(lines_capacity - 1) * line_width);
+      strncpy(LineAt(lines_capacity - 1), start, (size_t)len);
+      LineAt(lines_capacity - 1)[len] = 0;
+      if (line_count < lines_capacity) line_count++; else line_count = lines_capacity;
+      if( line_count > max_lines ) scroll_pos = line_count - max_lines;
+    }
+
+    start = newline + 1;
+  }
+
+  // Add the remaining text (or the entire text if no newlines)
   if( line_count < lines_capacity ) {
-    strncpy(LineAt(line_count), text, (size_t)line_width - 1);
+    strncpy(LineAt(line_count), start, (size_t)line_width - 1);
     LineAt(line_count)[line_width - 1] = 0;
     line_count++;
     if( line_count > max_lines ) {
@@ -134,7 +163,7 @@ void Terminal::AddLine(const char* text) {
   } else {
     // simple rollover: drop the oldest line, shift memory
     memmove(lines_data, lines_data + line_width, (size_t)(lines_capacity - 1) * line_width);
-    strncpy(LineAt(lines_capacity - 1), text, (size_t)line_width - 1);
+    strncpy(LineAt(lines_capacity - 1), start, (size_t)line_width - 1);
     LineAt(lines_capacity - 1)[line_width - 1] = 0;
     if (line_count < lines_capacity) line_count++; else line_count = lines_capacity;
     if( line_count > max_lines ) scroll_pos = line_count - max_lines;
@@ -227,13 +256,13 @@ void Terminal::EnterLine() {
 
     // Check for help commands
     if( strcmp(cmd, "h") == 0 || strcmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0 ) {
-      AddLine("Available commands:");
-      AddLine("  g <address>        - Go to file position (hex: 0x123, decimal: 123, or EOF)");
-      AddLine("  g <N>,<address>    - Go to address in specific file N");
-      AddLine("  l, list            - List all open files with full paths");
-      AddLine("  h <NN>             - Set terminal height to NN rows (5-100)");
-      AddLine("  q, quit, exit      - Quit the application");
-      AddLine("  help, ?            - Show this help");
+      AddLine("Available commands:\n"
+              "  g <address>        - Go to file position (hex: 0x123, decimal: 123, or EOF)\n"
+              "  g <N>,<address>    - Go to address in specific file N\n"
+              "  l, list            - List all open files with full paths\n"
+              "  h <NN>             - Set terminal height to NN rows (2-100)\n"
+              "  q, quit, exit      - Quit the application\n"
+              "  help, ?            - Show this help");
       handled = true;
     }
 
