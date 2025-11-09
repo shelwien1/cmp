@@ -37,8 +37,8 @@ void hexfile::SetTextbuf( textblock& tb1, uint _BX, uint _flags, uint _display_m
     // Hex-only: each byte takes 3 chars ("XX ")
     F1cpl = available / 3;
     F1dpl = available % 3;
-  } else if( _display_mode == MODE_TEXT_ONLY ) {
-    // Text-only: each byte takes 1 char
+  } else if( _display_mode == MODE_TEXT_ONLY || _display_mode == MODE_GRAYSCALE ) {
+    // Text-only or Grayscale: each byte takes 1 char
     F1cpl = available / 1;
     F1dpl = available % 1;
   } else {
@@ -178,13 +178,13 @@ void hexfile::hexdump( textblock& tb1 ) {
         c = tb1.ch(' ',pal_Hex);  // Default to space
         // If byte is within viewable range
         if( ((ofs+i)>=viewbeg) && ((ofs+i)<viewend) ) {
-          // Print byte as character (control chars will display as-is)
+          // Print byte as character with correct attribute (pal_Diff for differences)
           c = tb1.ch( p[j*BX+i], diffbuf[j*BX+i]?pal_Diff:pal_Hex );
         }
-        *s++ = tb1.ch( byte(c),pal_Hex);  // Write character
+        *s++ = c;  // Write character with attribute (preserves diff highlighting)
       }
     } else if( display_mode == MODE_GRAYSCALE ) {
-      // Grayscale mode: display spaces with grayscale background based on byte value
+      // Grayscale mode: display spaces/X with grayscale background based on byte value
       for( i=0; i<cpl; i++ ) {
         c = tb1.ch(' ',pal_Hex);  // Default to space with normal palette
         // If byte is within viewable range
@@ -192,7 +192,9 @@ void hexfile::hexdump( textblock& tb1 ) {
           // Map byte value (0-255) to grayscale palette index (6-255)
           byte byte_val = p[j*BX+i];
           uint gray_idx = pal_GRAY_START + ((byte_val * (pal_MAX - pal_GRAY_START - 1)) / 255);
-          c = tb1.ch( ' ', gray_idx );  // Display space with grayscale background
+          // Display 'X' for different bytes, space for same bytes
+          char display_char = diffbuf[j*BX+i] ? 'X' : ' ';
+          c = tb1.ch( display_char, gray_idx );  // Display with grayscale background
         }
         *s++ = c;  // Write character with grayscale attribute
       }
@@ -229,10 +231,10 @@ void hexfile::hexdump( textblock& tb1 ) {
         c = tb1.ch(' ',pal_Hex);  // Default to space
         // If byte is within viewable range
         if( ((ofs+i)>=viewbeg) && ((ofs+i)<viewend) ) {
-          // Print byte as character (control chars will display as-is)
+          // Print byte as character with correct attribute (pal_Diff for differences)
           c = tb1.ch( p[j*BX+i], diffbuf[j*BX+i]?pal_Diff:pal_Hex );
         }
-        *s++ = tb1.ch( byte(c),pal_Hex);  // Write character
+        *s++ = c;  // Write character with attribute (preserves diff highlighting)
       }
     }
 
