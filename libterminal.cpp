@@ -321,18 +321,25 @@ uint Terminal::HandleMessage(const MSG& msg, HWND hwnd) {
           // Shift-Insert: paste from clipboard
           if( GetKeyState(VK_SHIFT) & 0x8000 ) {
             if( OpenClipboard(hwnd) ) {
-              HANDLE hData = GetClipboardData(CF_TEXT);
+              HANDLE hData = GetClipboardData(CF_UNICODETEXT);
               if( hData ) {
-                char* pszText = (char*)GlobalLock(hData);
-                if( pszText ) {
-                  // Insert text at cursor position
-                  int len = (int)strlen(pszText);
-                  for(int i = 0; i < len; i++) {
-                    char ch = pszText[i];
-                    // Skip newlines and other control characters
-                    if( ch >= 32 && ch < 127 ) {
-                      InsertChar(ch);
+                wchar_t* pszUnicode = (wchar_t*)GlobalLock(hData);
+                if( pszUnicode ) {
+                  // Convert Unicode to OEM codepage
+                  int oemLen = WideCharToMultiByte(CP_OEMCP, 0, pszUnicode, -1, NULL, 0, NULL, NULL);
+                  if( oemLen > 0 ) {
+                    char* pszOem = new char[oemLen];
+                    WideCharToMultiByte(CP_OEMCP, 0, pszUnicode, -1, pszOem, oemLen, NULL, NULL);
+
+                    // Insert text at cursor position
+                    for(int i = 0; pszOem[i] != 0; i++) {
+                      unsigned char ch = (unsigned char)pszOem[i];
+                      // Skip control characters (0-31 except newlines), allow 32-255
+                      if( ch >= 32 ) {
+                        InsertChar(pszOem[i]);
+                      }
                     }
+                    delete[] pszOem;
                   }
                   GlobalUnlock(hData);
                 }
