@@ -743,6 +743,18 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
 
     if(0) { m_break: break; }  // Exit label (jumped to from WM_CLOSE)
 
+    // Pass through Alt-Shift for Windows language switching
+    // Must check BEFORE TranslateMessage to avoid interfering with the system hotkey
+    if( (msg.message == WM_KEYDOWN || msg.message == WM_SYSKEYDOWN) ) {
+      int alt_check = ((msg.lParam>>29)&1);
+      int shift_check = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+      if( alt_check && shift_check && (msg.wParam == VK_SHIFT || msg.wParam == VK_MENU) ) {
+        // Don't call TranslateMessage - just dispatch directly to DefWindowProc
+        DispatchMessage(&msg);
+        continue;  // Skip all other processing for this message
+      }
+    }
+
     // Convert WM_KEYDOWN to WM_CHAR for character input (needed for terminal typing)
     TranslateMessage(&msg);
 
@@ -838,12 +850,6 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
         alt = ((msg.lParam>>29)&1);
         ctr = (GetKeyState(VK_CONTROL)>>31)&1;
         shift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-
-        // Pass through Alt-Shift for Windows language switching
-        if( alt && shift && (msg.wParam == VK_SHIFT || msg.wParam == VK_MENU) ) {
-          DispatchMessage(&msg);
-          break;
-        }
 
         // If terminal is active, handle messages in terminal (except special keys)
         // Allow: Esc, F2, F5, PgUp, PgDn, Ctrl+Home, Ctrl+End, Ctrl+Arrows, Tab, F6
