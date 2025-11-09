@@ -23,14 +23,30 @@ uint hexfile::Calc_WCX( uint mBX, uint f_addr64, uint f_vertline, uint mode ) {
 }
 
 // Initialize textbuffer parameters (called during setup/resize)
-void hexfile::SetTextbuf( textblock& tb1, uint _BX, uint _flags ) {
+void hexfile::SetTextbuf( textblock& tb1, uint _BX, uint _flags, uint _display_mode ) {
   flags = _flags;  // Store display flags
   BX = _BX;        // Bytes per line
+  display_mode = _display_mode;  // Store display mode
 
   // Calculate how many bytes actually fit in the allocated text buffer
   uint aw = (flags&f_addr64)? 8+1+8 : 8;  // Address column width
-  F1cpl = (tb1.WCX-aw-2-1)/(3+1);  // Each byte takes 3 chars in hex + 1 char in ASCII
-  F1dpl = (tb1.WCX-aw-2-1)%(3+1);  // Leftover horizontal space
+  uint available = tb1.WCX - aw - 2;  // Space after address, ':', and ' '
+
+  // Calculate bytes per line based on display mode
+  if( _display_mode == MODE_HEX_ONLY ) {
+    // Hex-only: each byte takes 3 chars ("XX ")
+    F1cpl = available / 3;
+    F1dpl = available % 3;
+  } else if( _display_mode == MODE_TEXT_ONLY ) {
+    // Text-only: each byte takes 1 char
+    F1cpl = available / 1;
+    F1dpl = available % 1;
+  } else {
+    // Combined: each byte takes 4 chars (3 hex + 1 text), plus 1 separator
+    available -= 1;  // Account for space between hex and text sections
+    F1cpl = available / 4;
+    F1dpl = available % 4;
+  }
 
   textlen = BX*tb1.WCY;  // Total bytes that can be displayed
   diffbuf = new byte[textlen];  // Allocate difference highlight buffer
