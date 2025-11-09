@@ -272,7 +272,8 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
                   "  g <file>,<addr>  - Go to address in specific file\n"
                   "  s <pattern>      - Search for pattern in file 0 (or selected file)\n"
                   "  s# <pattern>     - Search for pattern in file # (0-based index)\n"
-                  "Pattern syntax: \"text\", 0xHH (hex), 123 (decimal), ? (wildcard)");
+                  "Pattern syntax: \"text\", 0xHH (hex), 123 (decimal), ? (wildcard)\n"
+                  "Keys: Ctrl-E = Repeat last command");
     return true;
   }
 
@@ -410,12 +411,13 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
     // Add initial searching message
     sprintf(buf, "Searching... (pattern length: %u bytes)", searchscan.searcher.GetLength());
     term->AddLine(buf);
+    DisplayRedraw();  // Update window immediately to show "Searching" message
 
     // Set busy flag to enable search (and allow interruption)
     f_busy = 1;
 
-    // Perform the search with progress updates
-    qword start_pos = F[search_file_idx].F1pos;
+    // Perform the search with progress updates (start from next position after current)
+    qword start_pos = F[search_file_idx].F1pos + 1;
     qword found_pos = searchscan.SearchInFile(search_file_idx, start_pos, term);
 
     // Clear busy flag
