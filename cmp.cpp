@@ -173,16 +173,21 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
     } else {
       term->AddLine("Open files:");
       char fullpath[32768];  // Large buffer for expanded paths
+      char truncated[32768];  // Buffer for truncated paths
 
       for(uint i=0; i<F_num; i++) {
         // Expand to full path (similar to ExpandPath in file_win.cpp)
         DWORD len = GetFullPathNameA(F_names[i], sizeof(fullpath), fullpath, NULL);
-        if( len == 0 || len >= sizeof(fullpath) ) {
-          // If expansion fails, use original path
-          snprintf(buf, sizeof(buf), "%u: %s", i, F_names[i]);
-        } else {
-          snprintf(buf, sizeof(buf), "%u: %s", i, fullpath);
-        }
+        const char* path_to_display = (len == 0 || len >= sizeof(fullpath)) ? F_names[i] : fullpath;
+
+        // Calculate available width: terminal cols - "N: " prefix (3 chars for single digit + ": ")
+        int prefix_len = snprintf(buf, sizeof(buf), "%u: ", i);
+        int max_path_width = term->cols - prefix_len;
+        if( max_path_width < 10 ) max_path_width = 10;  // Minimum reasonable width
+
+        // Truncate path to fit terminal width
+        TruncatePath(truncated, path_to_display, max_path_width);
+        snprintf(buf, sizeof(buf), "%u: %s", i, truncated);
         term->AddLine(buf);
       }
     }
@@ -205,8 +210,8 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
     int new_height = 0;
     sscanf(arg, "%d", &new_height);
 
-    if( new_height < 5 || new_height > 100 ) {
-      term->AddLine("Error: height must be between 5 and 100 rows");
+    if( new_height < 2 || new_height > 100 ) {
+      term->AddLine("Error: height must be between 2 and 100 rows");
       return true;
     }
 
