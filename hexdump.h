@@ -20,6 +20,14 @@ struct hexfile {
   };
   uint  flags;     // Combination of above flags
 
+  // Display modes
+  enum DisplayMode {
+    MODE_COMBINED = 0,  // Hex + text (default)
+    MODE_HEX_ONLY = 1,  // Hex only
+    MODE_TEXT_ONLY = 2  // Text only
+  };
+  uint  display_mode;  // Current display mode
+
   uint  BX;       // Bytes per line (configured - actual data width)
   uint  F1cpl;    // Chars per line (visible - may be < BX if window too narrow)
   uint  F1dpl;    // Unused chars in line (horizontal slack space)
@@ -36,7 +44,7 @@ struct hexfile {
   byte  databuf[datalen];  // Cached file data (1MB sliding window)
 
   // Calculate required text buffer width in characters for hex display
-  uint Calc_WCX( uint mBX, uint f_addr64, uint f_vertline );
+  uint Calc_WCX( uint mBX, uint f_addr64, uint f_vertline, uint mode );
 
   // Initialize textbuffer parameters (called during setup/resize)
   void SetTextbuf( textblock& tb1, uint _BX, uint _flags=0 );

@@ -10,9 +10,11 @@ Visual File Comparison utility
 ## Features
 
 - **Multi-file comparison**: Compare up to 8 files at once in a side-by-side layout
+- **Multiple display modes**: Toggle between combined hex+ASCII, hex-only, and text-only views (F2)
 - **Hex and ASCII display**: View file contents in both hexadecimal and ASCII representations
 - **Difference highlighting**: Automatically highlights bytes that differ between files
 - **Difference scanning**: Quickly jump to the next difference in files
+- **Integrated terminal**: Built-in command terminal for advanced navigation and file operations (F5)
 - **Configurable font**: Customize font type, size, width, and height
 - **Flexible display**: Adjust number of bytes per row and number of rows displayed
 - **32-bit/64-bit address support**: Toggle between 32-bit and 64-bit address display for large files (>4GB)
@@ -53,8 +55,14 @@ Visual File Comparison utility
 - **S**: Save current GUI configuration to registry
 - **L**: Load GUI configuration from registry
 
+### Display Modes
+- **F2**: Toggle display mode (Combined hex+text → Hex-only → Text-only → Combined)
+
+### Terminal
+- **F5**: Toggle terminal display at bottom of window (mutually exclusive with F1 help)
+
 ### Help and Exit
-- **F1**: Toggle help text display at bottom of window
+- **F1**: Toggle help text display at bottom of window (mutually exclusive with F5 terminal)
 - **Escape**: Quit application
 
 ## Usage
@@ -79,6 +87,21 @@ cmp.exe v1.exe v2.exe v3.exe v4.exe
 # View a single file in hex
 cmp.exe data.bin
 ```
+
+### Terminal Commands
+
+When the terminal is enabled (press **F5**), you can use the following commands:
+
+- **q**, **quit**, **exit**: Quit the application
+- **l**, **list**: List all open files with their full paths (truncated to fit terminal width)
+- **h** `<height>`: Set terminal height in rows (2-100). Example: `h 10`
+- **g** `<address>`: Jump to address in all files or selected file
+  - Address formats: decimal (e.g., `1234`), hex (e.g., `0x4D2`), or `EOF`
+  - File-specific jump: `g <file_num>,<address>` (e.g., `g 0,0x1000`)
+  - Examples:
+    - `g 0x1000` - Jump to address 0x1000 in all files
+    - `g 0,EOF` - Jump to end of file 0
+    - `g 1,1234` - Jump to address 1234 in file 1
 
 ## Building
 

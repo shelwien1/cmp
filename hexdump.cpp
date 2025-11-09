@@ -2,12 +2,23 @@
 #include "hexdump.h"
 
 // Calculate required text buffer width in characters for hex display
-uint hexfile::Calc_WCX( uint mBX, uint f_addr64, uint f_vertline ) {
+uint hexfile::Calc_WCX( uint mBX, uint f_addr64, uint f_vertline, uint mode ) {
   uint waddr = f_addr64 ? 8+1+8 : 8;  // Address: "XXXXXXXX" or "XXXXXXXX:XXXXXXXX"
   uint whex = 3*mBX;                   // Hex dump: "XX " per byte
   uint wtxt = 1*mBX;                   // ASCII: one char per byte
-  // Total: "ADDRESS: " + "hex hex hex..." + " " + "ASCII..." + "|"
-  uint WCX = waddr+1+1+whex+1+wtxt+(f_vertline>0);
+  uint WCX;
+
+  // Calculate width based on display mode
+  if( mode == MODE_HEX_ONLY ) {
+    // Hex-only: "ADDRESS: " + "hex hex hex..." + "|"
+    WCX = waddr+1+1+whex+(f_vertline>0);
+  } else if( mode == MODE_TEXT_ONLY ) {
+    // Text-only: "ADDRESS: " + "ASCII..." + "|"
+    WCX = waddr+1+1+wtxt+(f_vertline>0);
+  } else {
+    // Combined (default): "ADDRESS: " + "hex hex hex..." + " " + "ASCII..." + "|"
+    WCX = waddr+1+1+whex+1+wtxt+(f_vertline>0);
+  }
   return WCX;
 }
 
@@ -144,29 +155,56 @@ void hexfile::hexdump( textblock& tb1 ) {
     *s++ = tb1.ch(':',pal_Addr);  // Address-hex separator
     *s++ = tb1.ch(' ',pal_Hex);   // Space
 
-    // Print hex bytes section
-    for( i=0; i<cpl; i++ ) {
-      s[2]=s[1]=s[0] = tb1.ch(' ',pal_Hex);  // Default to spaces
-      // If byte is within viewable range (not past EOF)
-      if( ((ofs+i)>=viewbeg) && ((ofs+i)<viewend) ) {
-        // Print 2-digit hex value, use pal_Diff if byte differs from other files
-        HexPrint( s, p[j*BX+i], 2, diffbuf[j*BX+i]?pal_Diff:pal_Hex );
+    // Render based on display mode
+    if( display_mode == MODE_TEXT_ONLY ) {
+      // Text-only mode: skip hex section, render only ASCII
+      for( i=0; i<cpl; i++ ) {
+        c = tb1.ch(' ',pal_Hex);  // Default to space
+        // If byte is within viewable range
+        if( ((ofs+i)>=viewbeg) && ((ofs+i)<viewend) ) {
+          // Print byte as character (control chars will display as-is)
+          c = tb1.ch( p[j*BX+i], diffbuf[j*BX+i]?pal_Diff:pal_Hex );
+        }
+        *s++ = tb1.ch( byte(c),pal_Hex);  // Write character
       }
-      s+=3;  // Move to next byte position (2 hex + 1 space)
-    }
-    if( F1cpl<BX ) s[-1]=tb1.ch('>',pal_Addr);  // '>' indicator if line truncated
-
-    *s++ = tb1.ch(' ',pal_Hex);  // Space before ASCII section
-
-    // Print ASCII representation section
-    for( i=0; i<cpl; i++ ) {
-      c = tb1.ch(' ',pal_Hex);  // Default to space
-      // If byte is within viewable range
-      if( ((ofs+i)>=viewbeg) && ((ofs+i)<viewend) ) {
-        // Print byte as character (control chars will display as-is)
-        c = tb1.ch( p[j*BX+i], diffbuf[j*BX+i]?pal_Diff:pal_Hex );
+    } else if( display_mode == MODE_HEX_ONLY ) {
+      // Hex-only mode: render only hex bytes
+      for( i=0; i<cpl; i++ ) {
+        s[2]=s[1]=s[0] = tb1.ch(' ',pal_Hex);  // Default to spaces
+        // If byte is within viewable range (not past EOF)
+        if( ((ofs+i)>=viewbeg) && ((ofs+i)<viewend) ) {
+          // Print 2-digit hex value, use pal_Diff if byte differs from other files
+          HexPrint( s, p[j*BX+i], 2, diffbuf[j*BX+i]?pal_Diff:pal_Hex );
+        }
+        s+=3;  // Move to next byte position (2 hex + 1 space)
       }
-      *s++ = tb1.ch( byte(c),pal_Hex);  // Write character
+      if( F1cpl<BX ) s[-1]=tb1.ch('>',pal_Addr);  // '>' indicator if line truncated
+    } else {
+      // Combined mode (default): render both hex and ASCII
+      // Print hex bytes section
+      for( i=0; i<cpl; i++ ) {
+        s[2]=s[1]=s[0] = tb1.ch(' ',pal_Hex);  // Default to spaces
+        // If byte is within viewable range (not past EOF)
+        if( ((ofs+i)>=viewbeg) && ((ofs+i)<viewend) ) {
+          // Print 2-digit hex value, use pal_Diff if byte differs from other files
+          HexPrint( s, p[j*BX+i], 2, diffbuf[j*BX+i]?pal_Diff:pal_Hex );
+        }
+        s+=3;  // Move to next byte position (2 hex + 1 space)
+      }
+      if( F1cpl<BX ) s[-1]=tb1.ch('>',pal_Addr);  // '>' indicator if line truncated
+
+      *s++ = tb1.ch(' ',pal_Hex);  // Space before ASCII section
+
+      // Print ASCII representation section
+      for( i=0; i<cpl; i++ ) {
+        c = tb1.ch(' ',pal_Hex);  // Default to space
+        // If byte is within viewable range
+        if( ((ofs+i)>=viewbeg) && ((ofs+i)<viewend) ) {
+          // Print byte as character (control chars will display as-is)
+          c = tb1.ch( p[j*BX+i], diffbuf[j*BX+i]?pal_Diff:pal_Hex );
+        }
+        *s++ = tb1.ch( byte(c),pal_Hex);  // Write character
+      }
     }
 
     // Fill any dead space at end of line

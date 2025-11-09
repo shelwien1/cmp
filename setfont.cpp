@@ -15,7 +15,7 @@ void myfont::Quit( void ) {
 
 // Debug: print LOGFONT structure to console
 void myfont::DumpLF() {
-  printf( "Font: %s, Height=%d, Width=%d\n", lf.lfFaceName, lf.lfHeight, lf.lfWidth );
+  printf( "Font: %s, Height=%d, Width=%d\n", lf.lfFaceName, (int)lf.lfHeight, (int)lf.lfWidth );
 }
 
 // Show font selection dialog to user

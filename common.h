@@ -15,10 +15,6 @@
 // Undefine EOF if previously defined - we don't use stdio file I/O
 #undef EOF
 
-// Pack structures to 1-byte alignment - ensures no padding between fields for binary I/O
-// Use push/pop to scope packing to this header only, preventing it from affecting Windows structures
-#pragma pack(push, 1)
-
 // Type aliases for consistent width types across different platforms
 typedef unsigned short word;       // 16-bit unsigned (used for char+attribute pairs)
 typedef unsigned int   uint;       // 32-bit unsigned (general purpose)
@@ -85,17 +81,6 @@ template<byte a,byte b,byte c,byte d> struct wc {
  #define __assume(x) (x)
 #endif
 
-// Get file length using stdio (unused in this program - we use Win32 API instead)
-static uint flen( FILE* f ) {
-  // Seek to end of file
-  fseek( f, 0, SEEK_END );
-  // Get current position = file length
-  uint len = ftell(f);
-  // Restore position to beginning
-  fseek( f, 0, SEEK_SET );
-  return len;
-}
-
 // Platform detection macros - detect if compiling for 64-bit or 32-bit
 #if defined(__x86_64) || defined(_M_X64)
  // 64-bit build: define X64 macro
@@ -106,8 +91,5 @@ static uint flen( FILE* f ) {
  #undef X64
  #define X64flag 0
 #endif
-
-// Restore previous packing state
-#pragma pack(pop)
 
 #endif // COMMON_H

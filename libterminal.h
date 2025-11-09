@@ -3,6 +3,7 @@
 #ifndef LIBTERMINAL_H
 #define LIBTERMINAL_H
 
+#undef NOMINMAX
 #define NOMINMAX
 #include <windows.h>
 
