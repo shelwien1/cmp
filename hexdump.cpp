@@ -12,8 +12,8 @@ uint hexfile::Calc_WCX( uint mBX, uint f_addr64, uint f_vertline, uint mode ) {
   if( mode == MODE_HEX_ONLY ) {
     // Hex-only: "ADDRESS: " + "hex hex hex..." + "|"
     WCX = waddr+1+1+whex+(f_vertline>0);
-  } else if( mode == MODE_TEXT_ONLY ) {
-    // Text-only: "ADDRESS: " + "ASCII..." + "|"
+  } else if( mode == MODE_TEXT_ONLY || mode == MODE_GRAYSCALE ) {
+    // Text-only or Grayscale: "ADDRESS: " + "ASCII/spaces..." + "|"
     WCX = waddr+1+1+wtxt+(f_vertline>0);
   } else {
     // Combined (default): "ADDRESS: " + "hex hex hex..." + " " + "ASCII..." + "|"
@@ -182,6 +182,19 @@ void hexfile::hexdump( textblock& tb1 ) {
           c = tb1.ch( p[j*BX+i], diffbuf[j*BX+i]?pal_Diff:pal_Hex );
         }
         *s++ = tb1.ch( byte(c),pal_Hex);  // Write character
+      }
+    } else if( display_mode == MODE_GRAYSCALE ) {
+      // Grayscale mode: display spaces with grayscale background based on byte value
+      for( i=0; i<cpl; i++ ) {
+        c = tb1.ch(' ',pal_Hex);  // Default to space with normal palette
+        // If byte is within viewable range
+        if( ((ofs+i)>=viewbeg) && ((ofs+i)<viewend) ) {
+          // Map byte value (0-255) to grayscale palette index (6-255)
+          byte byte_val = p[j*BX+i];
+          uint gray_idx = pal_GRAY_START + ((byte_val * (pal_MAX - pal_GRAY_START - 1)) / 255);
+          c = tb1.ch( ' ', gray_idx );  // Display space with grayscale background
+        }
+        *s++ = c;  // Write character with grayscale attribute
       }
     } else if( display_mode == MODE_HEX_ONLY ) {
       // Hex-only mode: render only hex bytes

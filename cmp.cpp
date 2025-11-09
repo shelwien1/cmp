@@ -662,8 +662,8 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
             break;
 
           case VK_F2:
-            // Toggle display mode: combined -> hex-only -> text-only -> combined
-            lf.display_mode = (lf.display_mode + 1) % 3;
+            // Toggle display mode: combined -> hex-only -> text-only -> grayscale -> combined
+            lf.display_mode = (lf.display_mode + 1) % 4;
             goto Restart;
 
           case VK_F5:
