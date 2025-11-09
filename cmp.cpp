@@ -719,15 +719,17 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
     f_terminal_inited = 1;
   }
 
-  // Update terminal area position if terminal is visible
-  if( lf.f_terminal ) {
+  // Update terminal area if terminal exists (resize whenever dimensions change)
+  if( f_terminal_inited ) {
     RECT termArea;
     termArea.left = 0;
     termArea.top = WY;
     termArea.right = WX;
     termArea.bottom = WY + terminal_SY*ch1.hmax;
     term.Resize( termArea );  // Recalculate rows/cols for new dimensions
-    WY += terminal_SY*ch1.hmax;  // Add terminal height to total
+    if( lf.f_terminal ) {  // Only add to WY if visible
+      WY += terminal_SY*ch1.hmax;  // Add terminal height to total
+    }
   }
 
   WY += 2*wfr_y+wfr_c;  // Add frame borders to total height
