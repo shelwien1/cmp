@@ -62,6 +62,7 @@ uint f_terminal_inited = 0;   // Terminal initialized flag (preserve history)
 
 uint f_started = 0;           // First-time initialization flag (prevents re-init)
 volatile uint f_busy = 0;     // Background difference scan in progress flag
+volatile uint f_need_restart = 0;  // Flag to trigger restart from terminal commands
 
 // Background thread for scanning to next difference (Space/F6 key)
 // Scans forward through files looking for next byte that differs
@@ -171,16 +172,48 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
       term->AddLine("No files open.");
     } else {
       term->AddLine("Open files:");
-      // Reserve space for "N: " prefix (max 2 digits + ": " = 4 chars)
-      int max_path_width = term->cols - 4;
-      char truncated[512];  // Increased buffer size to avoid overflow
+      char fullpath[32768];  // Large buffer for expanded paths
 
       for(uint i=0; i<F_num; i++) {
-        TruncatePath(truncated, F_names[i], max_path_width);
-        snprintf(buf, sizeof(buf), "%u: %s", i, truncated);  // Use snprintf for safety
+        // Expand to full path (similar to ExpandPath in file_win.cpp)
+        DWORD len = GetFullPathNameA(F_names[i], sizeof(fullpath), fullpath, NULL);
+        if( len == 0 || len >= sizeof(fullpath) ) {
+          // If expansion fails, use original path
+          snprintf(buf, sizeof(buf), "%u: %s", i, F_names[i]);
+        } else {
+          snprintf(buf, sizeof(buf), "%u: %s", i, fullpath);
+        }
         term->AddLine(buf);
       }
     }
+    return true;
+  }
+
+  // Parse "h" command: set terminal height
+  if( cmd[0] == 'h' && (cmd[1] == ' ' || cmd[1] == '\t') ) {
+    const char* arg = cmd + 2;
+    while( *arg == ' ' || *arg == '\t' ) arg++;  // skip whitespace
+
+    if( *arg == 0 ) {
+      sprintf(buf, "Current terminal height: %u rows", terminal_SY);
+      term->AddLine(buf);
+      term->AddLine("Usage: h <height> - Set terminal height in rows (symbols)");
+      return true;
+    }
+
+    // Parse height
+    int new_height = 0;
+    sscanf(arg, "%d", &new_height);
+
+    if( new_height < 5 || new_height > 100 ) {
+      term->AddLine("Error: height must be between 5 and 100 rows");
+      return true;
+    }
+
+    terminal_SY = new_height;
+    sprintf(buf, "Terminal height set to %u rows. Restarting...", terminal_SY);
+    term->AddLine(buf);
+    f_need_restart = 1;  // Trigger restart to apply changes
     return true;
   }
 
@@ -500,6 +533,11 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
       if( lf.f_terminal ) {
         MSG dummy_msg = {0};
         term.HandleMessage(dummy_msg, win);  // Check cursor blink timer
+      }
+      // Check if terminal command requested a restart
+      if( f_need_restart ) {
+        f_need_restart = 0;
+        goto Restart;
       }
       DisplayRedraw();
       break;
