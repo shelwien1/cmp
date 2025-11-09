@@ -170,6 +170,15 @@ void Terminal::AddLine(const char* text) {
   }
 }
 
+void Terminal::UpdateLastLine(const char* text) {
+  if( !text || line_count == 0 ) return;
+
+  // Get pointer to last line and update it
+  int last_idx = line_count - 1;
+  strncpy(LineAt(last_idx), text, (size_t)line_width - 1);
+  LineAt(last_idx)[line_width - 1] = 0;
+}
+
 void Terminal::UpdateHScroll() {
   int vis_cursor = 1 + cursor_pos;
   if( vis_cursor < hscroll_pos ) {
@@ -299,6 +308,32 @@ uint Terminal::HandleMessage(const MSG& msg, HWND hwnd) {
         case VK_END:    MoveCursorEnd(); break;
         case VK_UP:     ScrollUp(); break;
         case VK_DOWN:   ScrollDown(); break;
+        case VK_INSERT:
+          // Shift-Insert: paste from clipboard
+          if( GetKeyState(VK_SHIFT) & 0x8000 ) {
+            if( OpenClipboard(hwnd) ) {
+              HANDLE hData = GetClipboardData(CF_TEXT);
+              if( hData ) {
+                char* pszText = (char*)GlobalLock(hData);
+                if( pszText ) {
+                  // Insert text at cursor position
+                  int len = (int)strlen(pszText);
+                  for(int i = 0; i < len; i++) {
+                    char ch = pszText[i];
+                    // Skip newlines and other control characters
+                    if( ch >= 32 && ch < 127 ) {
+                      InsertChar(ch);
+                    }
+                  }
+                  GlobalUnlock(hData);
+                }
+              }
+              CloseClipboard();
+            }
+          } else {
+            handled = 0;
+          }
+          break;
         default: handled=0; break;
       }
       if(handled) InvalidateRect(hwnd,&area,FALSE);

@@ -250,6 +250,7 @@ typedef struct _FILETIME {
 #define VK_UP                   0x26
 #define VK_RIGHT                0x27
 #define VK_DOWN                 0x28
+#define VK_INSERT               0x2D
 #define VK_DELETE               0x2E
 #define VK_F1                   0x70
 #define VK_F5                   0x74
@@ -358,6 +359,10 @@ extern char** __argv;
 // Code page constants
 #define CP_OEMCP                       1
 #define CP_UTF8                        65001
+
+// Clipboard constants
+#define CF_TEXT                        1
+#define GMEM_MOVEABLE                  0x0002
 
 // Registry constants
 #define HKEY_CURRENT_USER       ((HKEY)0x80000001)
@@ -535,6 +540,17 @@ DWORD GetFullPathNameA(LPCSTR lpFileName, DWORD nBufferLength, LPSTR lpBuffer, L
 
 // Memory functions
 void* LocalFree(void* hMem);
+void* GlobalLock(HANDLE hMem);
+int GlobalUnlock(HANDLE hMem);
+HANDLE GlobalAlloc(UINT uFlags, SIZE_T dwBytes);
+HANDLE GlobalFree(HANDLE hMem);
+
+// Clipboard functions
+int OpenClipboard(HWND hWndNewOwner);
+int CloseClipboard(void);
+HANDLE GetClipboardData(UINT uFormat);
+HANDLE SetClipboardData(UINT uFormat, HANDLE hMem);
+int EmptyClipboard(void);
 
 #ifdef __cplusplus
 }
