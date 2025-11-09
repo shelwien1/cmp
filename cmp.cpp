@@ -154,7 +154,8 @@ struct SearchScan {
   }
 
   // Search for pattern in specific file, return position or -1LL if not found
-  qword SearchInFile(uint file_idx, qword start_pos) {
+  // Reports progress to terminal if term is not NULL
+  qword SearchInFile(uint file_idx, qword start_pos, Terminal* term = NULL) {
     if( file_idx >= F_num ) return -1LL;
 
     hexfile& file = F[file_idx];
@@ -167,7 +168,20 @@ struct SearchScan {
     // Search through file in blocks
     const qword block_size = hexfile::datalen;
 
+    DWORD last_progress_time = GetTickCount();
+    char progress_buf[256];
+
     while( pos < file_size ) {
+      // Update progress every 500ms
+      DWORD current_time = GetTickCount();
+      if( term && (current_time - last_progress_time) >= 500 ) {
+        uint percent = (uint)((pos * 100) / file_size);
+        sprintf(progress_buf, "Searching... %u%% (0x%llX / 0x%llX)", percent, pos, file_size);
+        term->UpdateLastLine(progress_buf);
+        DisplayRedraw();  // Force redraw to show progress
+        last_progress_time = current_time;
+      }
+
       // Calculate how much to read
       qword read_size = Min(block_size, file_size - pos);
       if( read_size < pattern_len ) break;  // Not enough data left
@@ -237,6 +251,21 @@ void TruncatePath(char* dest, const char* path, int max_width) {
 // Returns true if command was handled, false otherwise
 bool TerminalCommandHandler(Terminal* term, const char* cmd) {
   char buf[256];
+
+  // Parse "help" command: show available commands
+  if( strcmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0 ) {
+    term->AddLine("Available commands:");
+    term->AddLine("  help, ?          - Show this help");
+    term->AddLine("  q, quit, exit    - Quit application");
+    term->AddLine("  l, list          - List all open files");
+    term->AddLine("  h <height>       - Set terminal height in rows");
+    term->AddLine("  g <addr>         - Go to address (hex: 0x..., decimal, or EOF)");
+    term->AddLine("  g <file>,<addr>  - Go to address in specific file");
+    term->AddLine("  s <pattern>      - Search for pattern in file 0 (or selected file)");
+    term->AddLine("  s# <pattern>     - Search for pattern in file # (0-based index)");
+    term->AddLine("Pattern syntax: \"text\", 0xHH (hex), 123 (decimal), ? (wildcard)");
+    return true;
+  }
 
   // Parse "q", "quit", "exit" commands: quit application
   if( strcmp(cmd, "q") == 0 || strcmp(cmd, "quit") == 0 || strcmp(cmd, "exit") == 0 ) {
@@ -351,56 +380,49 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
       return true;
     }
 
-    sprintf(buf, "Searching for pattern (length: %u bytes)...", searchscan.searcher.GetLength());
+    // Determine which file to search and whether to sync all files
+    uint search_file_idx;
+    bool sync_all_files;
+
+    if( lf.cur_view >= 0 ) {
+      // Selection exists - search only in selected file, don't sync
+      search_file_idx = lf.cur_view;
+      sync_all_files = false;
+    } else if( file_num >= 0 ) {
+      // Explicit file number given - search in that file, sync all files
+      search_file_idx = file_num;
+      sync_all_files = true;
+    } else {
+      // No selection, no file number - default to file 0, sync all files
+      search_file_idx = 0;
+      sync_all_files = true;
+    }
+
+    // Add initial searching message
+    sprintf(buf, "Searching... (pattern length: %u bytes)", searchscan.searcher.GetLength());
     term->AddLine(buf);
 
-    // Determine which file(s) to search
-    if( file_num >= 0 ) {
-      // Search in specific file
-      qword start_pos = F[file_num].F1pos;
-      qword found_pos = searchscan.SearchInFile(file_num, start_pos);
+    // Perform the search with progress updates
+    qword start_pos = F[search_file_idx].F1pos;
+    qword found_pos = searchscan.SearchInFile(search_file_idx, start_pos, term);
 
-      if( found_pos != (qword)(-1LL) ) {
-        F[file_num].SetFilepos(found_pos);
-        sprintf(buf, "File %d: pattern found at position 0x%llX (%llu)", file_num, found_pos, found_pos);
-      } else {
-        sprintf(buf, "File %d: pattern not found", file_num);
-      }
-      term->AddLine(buf);
-
-    } else if( lf.cur_view >= 0 ) {
-      // Selection exists - search only in selected file
-      uint i = lf.cur_view;
-      qword start_pos = F[i].F1pos;
-      qword found_pos = searchscan.SearchInFile(i, start_pos);
-
-      if( found_pos != (qword)(-1LL) ) {
-        F[i].SetFilepos(found_pos);
-        sprintf(buf, "File %d: pattern found at position 0x%llX (%llu)", i, found_pos, found_pos);
-      } else {
-        sprintf(buf, "File %d: pattern not found", i);
-      }
-      term->AddLine(buf);
-
-    } else {
-      // No selection - search in all files and sync positions
-      qword found_pos = (qword)(-1LL);
-      uint found_file = 0;
-
-      // Try to find pattern in file 0 first
-      qword start_pos = F[0].F1pos;
-      found_pos = searchscan.SearchInFile(0, start_pos);
-
-      if( found_pos != (qword)(-1LL) ) {
-        // Found in file 0, update all file positions to match
+    if( found_pos != (qword)(-1LL) ) {
+      // Found! Update file positions
+      if( sync_all_files ) {
+        // Update all file positions to match
         for(uint i=0; i<F_num; i++) {
           F[i].SetFilepos(found_pos);
         }
         sprintf(buf, "Pattern found at position 0x%llX (%llu) - all files synchronized", found_pos, found_pos);
-        term->AddLine(buf);
       } else {
-        term->AddLine("Pattern not found in file 0");
+        // Update only the searched file
+        F[search_file_idx].SetFilepos(found_pos);
+        sprintf(buf, "File %d: pattern found at position 0x%llX (%llu)", search_file_idx, found_pos, found_pos);
       }
+      term->AddLine(buf);
+    } else {
+      sprintf(buf, "File %d: pattern not found", search_file_idx);
+      term->AddLine(buf);
     }
 
     DisplayRedraw();  // Update hex view display

@@ -286,6 +286,62 @@ void* LocalFree(void* hMem) {
     return nullptr;
 }
 
+void* GlobalLock(HANDLE hMem) {
+    return hMem;  // In our stub, memory is directly accessible
+}
+
+int GlobalUnlock(HANDLE) {
+    return 1;
+}
+
+HANDLE GlobalAlloc(UINT, SIZE_T dwBytes) {
+    return (HANDLE)malloc(dwBytes);
+}
+
+HANDLE GlobalFree(HANDLE hMem) {
+    free(hMem);
+    return nullptr;
+}
+
+// ===== Clipboard functions =====
+static char* g_clipboard_text = nullptr;
+
+int OpenClipboard(HWND) {
+    return 1;  // Success
+}
+
+int CloseClipboard(void) {
+    return 1;  // Success
+}
+
+HANDLE GetClipboardData(UINT uFormat) {
+    if (uFormat == 1 && g_clipboard_text) {  // CF_TEXT
+        return (HANDLE)g_clipboard_text;
+    }
+    return nullptr;
+}
+
+HANDLE SetClipboardData(UINT uFormat, HANDLE hMem) {
+    if (uFormat == 1) {  // CF_TEXT
+        if (g_clipboard_text) free(g_clipboard_text);
+        size_t len = strlen((char*)hMem) + 1;
+        g_clipboard_text = (char*)malloc(len);
+        if (g_clipboard_text) {
+            memcpy(g_clipboard_text, hMem, len);
+        }
+        return hMem;
+    }
+    return nullptr;
+}
+
+int EmptyClipboard(void) {
+    if (g_clipboard_text) {
+        free(g_clipboard_text);
+        g_clipboard_text = nullptr;
+    }
+    return 1;
+}
+
 // ===== Entry point wrapper =====
 // WinMain is the Windows entry point, but on Linux we need main()
 extern int WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);

@@ -63,6 +63,7 @@ struct Terminal {
 
   // Content operations
   void AddLine(const char* text);
+  void UpdateLastLine(const char* text);  // Update the last line instead of adding new one
   void UpdateHScroll();
   void InsertChar(char ch);
   void Backspace();
