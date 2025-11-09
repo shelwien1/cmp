@@ -739,7 +739,8 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
   lf_old = lf;  // Save config for change detection
 
   // Main message loop - processes Windows messages (keyboard, mouse, paint, timer)
-  while( GetMessage(&msg,win,0,0) ) {
+  // Use NULL hwnd to receive thread-level messages (including WM_INPUTLANGCHANGE)
+  while( GetMessage(&msg,NULL,0,0) ) {
 
     if(0) { m_break: break; }  // Exit label (jumped to from WM_CLOSE)
 
