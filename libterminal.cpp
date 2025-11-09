@@ -228,9 +228,12 @@ void Terminal::EnterLine() {
     // Check for help commands
     if( strcmp(cmd, "h") == 0 || strcmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0 ) {
       AddLine("Available commands:");
-      AddLine("  g <address>     - Go to file position (hex: 0x123 or decimal: 123)");
-      AddLine("  l, list         - List all open files with their indices");
-      AddLine("  h, help, ?      - Show this help");
+      AddLine("  g <address>        - Go to file position (hex: 0x123, decimal: 123, or EOF)");
+      AddLine("  g <N>,<address>    - Go to address in specific file N");
+      AddLine("  l, list            - List all open files with full paths");
+      AddLine("  h <NN>             - Set terminal height to NN rows (5-100)");
+      AddLine("  q, quit, exit      - Quit the application");
+      AddLine("  help, ?            - Show this help");
       handled = true;
     }
 

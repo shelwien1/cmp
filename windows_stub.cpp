@@ -253,6 +253,12 @@ DWORD GetFullPathNameW(LPCWSTR lpFileName, DWORD nBufferLength, LPWSTR lpBuffer,
     wcsncat(lpBuffer, lpFileName, nBufferLength - 4);
     return wcslen(lpBuffer);
 }
+DWORD GetFullPathNameA(LPCSTR lpFileName, DWORD nBufferLength, LPSTR lpBuffer, LPSTR*) {
+    if (!lpBuffer) return strlen(lpFileName) + 10;
+    strncpy(lpBuffer, "C:\\", nBufferLength);
+    strncat(lpBuffer, lpFileName, nBufferLength - 4);
+    return strlen(lpBuffer);
+}
 
 // ===== Memory functions =====
 void* LocalFree(void* hMem) {
