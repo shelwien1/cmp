@@ -20,7 +20,8 @@ enum pal_ {
   pal_Help1,    // Help text normal (cyan on dark blue)
   pal_Help2,    // Help text highlighted sections (white on dark blue)
 
-  pal_MAX       // Number of palette entries
+  pal_GRAY_START = 6,  // Start of grayscale region (indices 6-255)
+  pal_MAX = 256        // Total palette entries (6 UI colors + 250 grayscale)
 };
 
 // Color palette definition (RGB values: 0x00BBGGRR)

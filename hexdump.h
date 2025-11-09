@@ -22,9 +22,10 @@ struct hexfile {
 
   // Display modes
   enum DisplayMode {
-    MODE_COMBINED = 0,  // Hex + text (default)
-    MODE_HEX_ONLY = 1,  // Hex only
-    MODE_TEXT_ONLY = 2  // Text only
+    MODE_COMBINED = 0,   // Hex + text (default)
+    MODE_HEX_ONLY = 1,   // Hex only
+    MODE_TEXT_ONLY = 2,  // Text only
+    MODE_GRAYSCALE = 3   // Grayscale visualization (symbols as spaces with gray backgrounds)
   };
   uint  display_mode;  // Current display mode
 
