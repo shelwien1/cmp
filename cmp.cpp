@@ -829,12 +829,6 @@ int __stdcall WinMain( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmd
       }
       break;
 
-    case WM_SYSKEYDOWN:
-      // Let system key messages (Alt+key) pass through to DefWindowProc
-      // This allows Windows to handle Alt-Shift language switching in real-time
-      DispatchMessage(&msg);
-      break;
-
     case WM_KEYDOWN:
       curtim = GetTickCount();
       {
