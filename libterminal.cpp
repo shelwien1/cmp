@@ -263,20 +263,8 @@ void Terminal::EnterLine() {
     const char* cmd = current_line;
     while( *cmd == ' ' ) cmd++;
 
-    // Check for help commands
-    if( strcmp(cmd, "h") == 0 || strcmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0 ) {
-      AddLine("Available commands:\n"
-              "  g <address>        - Go to file position (hex: 0x123, decimal: 123, or EOF)\n"
-              "  g <N>,<address>    - Go to address in specific file N\n"
-              "  l, list            - List all open files with full paths\n"
-              "  h <NN>             - Set terminal height to NN rows (2-100)\n"
-              "  q, quit, exit      - Quit the application\n"
-              "  help, ?            - Show this help");
-      handled = true;
-    }
-
     // Try external command handler
-    if( !handled && command_handler ) {
+    if( command_handler ) {
       handled = command_handler(this, cmd);
     }
 

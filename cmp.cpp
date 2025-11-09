@@ -155,6 +155,7 @@ struct SearchScan {
 
   // Search for pattern in specific file, return position or -1LL if not found
   // Reports progress to terminal if term is not NULL
+  // Can be interrupted by setting f_busy=0 (like DiffScan)
   qword SearchInFile(uint file_idx, qword start_pos, Terminal* term = NULL) {
     if( file_idx >= F_num ) return -1LL;
 
@@ -171,14 +172,22 @@ struct SearchScan {
     DWORD last_progress_time = GetTickCount();
     char progress_buf[256];
 
-    while( pos < file_size ) {
-      // Update progress every 500ms
+    while( pos < file_size && f_busy ) {
+      // Update progress every 100ms
       DWORD current_time = GetTickCount();
-      if( term && (current_time - last_progress_time) >= 500 ) {
+      if( term && (current_time - last_progress_time) >= 100 ) {
         uint percent = (uint)((pos * 100) / file_size);
         sprintf(progress_buf, "Searching... %u%% (0x%llX / 0x%llX)", percent, pos, file_size);
         term->UpdateLastLine(progress_buf);
         DisplayRedraw();  // Force redraw to show progress
+
+        // Process pending Windows messages to handle redraws and keypresses
+        MSG msg_temp;
+        while( PeekMessage(&msg_temp, win, 0, 0, PM_REMOVE) ) {
+          TranslateMessage(&msg_temp);
+          DispatchMessage(&msg_temp);
+        }
+
         last_progress_time = current_time;
       }
 
@@ -205,7 +214,7 @@ struct SearchScan {
       pos += move_delta;
     }
 
-    return -1LL;  // Not found
+    return -1LL;  // Not found (or interrupted)
   }
 };
 
@@ -254,16 +263,16 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
 
   // Parse "help" command: show available commands
   if( strcmp(cmd, "help") == 0 || strcmp(cmd, "?") == 0 ) {
-    term->AddLine("Available commands:");
-    term->AddLine("  help, ?          - Show this help");
-    term->AddLine("  q, quit, exit    - Quit application");
-    term->AddLine("  l, list          - List all open files");
-    term->AddLine("  h <height>       - Set terminal height in rows");
-    term->AddLine("  g <addr>         - Go to address (hex: 0x..., decimal, or EOF)");
-    term->AddLine("  g <file>,<addr>  - Go to address in specific file");
-    term->AddLine("  s <pattern>      - Search for pattern in file 0 (or selected file)");
-    term->AddLine("  s# <pattern>     - Search for pattern in file # (0-based index)");
-    term->AddLine("Pattern syntax: \"text\", 0xHH (hex), 123 (decimal), ? (wildcard)");
+    term->AddLine("Available commands:\n"
+                  "  help, ?          - Show this help\n"
+                  "  q, quit, exit    - Quit application\n"
+                  "  l, list          - List all open files\n"
+                  "  h <height>       - Set terminal height in rows\n"
+                  "  g <addr>         - Go to address (hex: 0x..., decimal, or EOF)\n"
+                  "  g <file>,<addr>  - Go to address in specific file\n"
+                  "  s <pattern>      - Search for pattern in file 0 (or selected file)\n"
+                  "  s# <pattern>     - Search for pattern in file # (0-based index)\n"
+                  "Pattern syntax: \"text\", 0xHH (hex), 123 (decimal), ? (wildcard)");
     return true;
   }
 
@@ -402,9 +411,15 @@ bool TerminalCommandHandler(Terminal* term, const char* cmd) {
     sprintf(buf, "Searching... (pattern length: %u bytes)", searchscan.searcher.GetLength());
     term->AddLine(buf);
 
+    // Set busy flag to enable search (and allow interruption)
+    f_busy = 1;
+
     // Perform the search with progress updates
     qword start_pos = F[search_file_idx].F1pos;
     qword found_pos = searchscan.SearchInFile(search_file_idx, start_pos, term);
+
+    // Clear busy flag
+    f_busy = 0;
 
     if( found_pos != (qword)(-1LL) ) {
       // Found! Update file positions
